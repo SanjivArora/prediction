@@ -7,6 +7,7 @@ require(iotools)
 require(memoise)
 require(data.table)
 require(stringr)
+require(doParallel)
 
 #source("Util.R")
 #source("Dates.R")
@@ -64,7 +65,7 @@ prefixes_for_model = function(model, sources=default_sources) {
 files_for_model <- function (date, model, days=default_days, sources=default_sources) {
   return (map(prefixes_for_model(model, sources=sources), function(model) get_names(date, model, days=days)))
 }
-files_for_model <- memoise(files_for_model, cache=fs_cache)
+#files_for_model <- memoise(files_for_model, cache=fs_cache)
 
 matching_files <- function(files_list){
   length(unique(map(files_list,function (x) substrRight(x,12))))==1
@@ -141,10 +142,11 @@ load_data <- function(file_set) {
 dataframes_for_model <- function(date, model, days=default_days, sources=default_sources) {
   fs <- files_for_model(date, model, days=days, sources=sources)
   tuples <- filename_tuples(fs)
-  res <- map(tuples, load_data)
+  #res <- map(tuples, load_data)
+  res <- foreach(x=tuples) %dopar% load_data(x)
   return(res)
 } 
-dataframes_for_model <- memoise(dataframes_for_model, cache=fs_cache)
+#dataframes_for_model <- memoise(dataframes_for_model, cache=fs_cache)
 
 common_serials <- function(dataframes) {
   serials <- map(dataframes, function(df) df["Serial"])

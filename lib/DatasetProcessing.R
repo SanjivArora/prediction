@@ -17,10 +17,9 @@ extract_serial <- function(index_string) {
 group_map_to_df <- function(h) {
   means_list <- list()
   idxs <- keys(h)
-  for (idx in idxs) {
+  means_list <- foreach(idx=idxs) %dopar% {
     dfs <- h[[idx]]
-    row_mean <- Reduce(`+`, dfs) / length(dfs)
-    means_list <- append(means_list, list(row_mean))
+    Reduce(`+`, dfs) / length(dfs)
   }
   res <- rbindlist(means_list)
   res <- as.data.frame(res)
@@ -30,15 +29,16 @@ group_map_to_df <- function(h) {
 
 
 get_index_to_data <- function(all_dfs, indices, start_dates, delta_days, latest_delta, offset) {
-  index_to_data <- hash()
-  # Query for serials for each day and update results
+  # Query for serials for each day
   
-  for(i in 1:delta_days) {
+  serials <- lapply(indices, extract_serial)
+  
+  parts <- foreach(i=1:delta_days) %dopar% {
+    part <- hash()
     print(paste("Processing", i, "of", delta_days))
     current_date <- latest_delta - lubridate::days(i-1)
     day_data <- all_dfs[[i]]
     current <- list()
-    
     for(j in 1:length(indices)) {
       index <- indices[[j]]
       start_date <- start_dates[[j]]
@@ -46,32 +46,46 @@ get_index_to_data <- function(all_dfs, indices, start_dates, delta_days, latest_
         current <- append(current, list(index))
       }
     }
-    if(length(current)==0) {
-      next
-    }
-    
-    serials <- lapply(indices, extract_serial)
-    rows <- day_data[unlist(serials),]
-    
     
     for(j in 1:length(current)) {
-      index <- current[[j]]
-      row <- rows[j,]
-      # Skip if no data
-      if(all(is.na(row))) {
-        next
-      }
-      if(has.key(c(index), index_to_data)[[1]]) {
-        index_to_data[[index]] <- append(index_to_data[[index]], list(row))
-      } else {
-        index_to_data[[index]] <- list(row)
+      if(length(current)!=0) {
+        rows <- day_data[unlist(serials),]
+        index <- current[[j]]
+        row <- rows[j,]
+        # Only add row if we have valid data
+        if(!all(is.na(row))) {
+          part[[index]] <- row
+        }
       }
     }
+    part
   }
-  
+
+  values <- foreach(index=indices) %dopar% {
+    data <- list()
+    for(part in parts) {
+      if(has.key(index, part)[[1]]) {
+        data <- append(data, list(part[[index]]))
+      }
+    }
+    data
+  }
+
+  # Only use indices that have data
+  filtered_indices <- list()
+  filtered_values <- list()
+  # Expensive due to linear lookup cost, but probably fine
+  index_to_data <- hash()
+  for (i in 1:length(indices)) {
+    index <- indices[[i]]
+    value <- values[[i]]
+    if(length(value)) {
+      index_to_data[[index]] <- value
+    }
+  }
   return(index_to_data)
 }
-get_index_to_data <- memoise(get_index_to_data, cache=fs_cache)
+#get_index_to_data <- memoise(get_index_to_data, cache=fs_cache)
 
 get_test_data <- function(all_dfs, index_to_code, window_days, delta_days, latest_delta, offset) {
   print("Processing test data")
@@ -135,4 +149,4 @@ get_dataset <- function(date, all_dfs, index_to_code, window_days, delta_days, o
   }
   return(dataset)
 }
-get_dataset <- memoise(get_dataset, cache=fs_cache)
+#get_dataset <- memoise(get_dataset, cache=fs_cache)

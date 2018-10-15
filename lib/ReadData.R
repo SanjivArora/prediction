@@ -22,7 +22,7 @@ read_data <- function(date, model, data_days, sources, features=c()) {
   numeric_all <- lapply(aug, only_numeric)
   return(numeric_all)
 }
-read_data <- memoise(read_data)
+#read_data <- memoise(read_data)
 
 
 read_sc <- function(date, model, days, offset) {
@@ -44,4 +44,4 @@ read_sc <- function(date, model, days, offset) {
   index_to_code <- get_index_to_code(distinct(selected_SC), offset)
   return(index_to_code)
 }
-read_sc <- memoize(read_sc)
+#read_sc <- memoize(read_sc)

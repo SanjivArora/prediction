@@ -29,7 +29,6 @@ plot_umap_sc <- function(dataset, color_sets=list()) {
   
   index <- row.names(dataset) %in% serials
   filtered <- u$layout[index,]
-  View(filtered)
   
   points(filtered[,1],filtered[,2], col="red")
 }
