@@ -1,0 +1,3 @@
+X7951_102_Remain.Day.Counter..Pages....ITB.Cleaning.Unit..SP7.951.102..Read.Only.
+X4520_23_IBACC.DetectedValue..Latest.C_P3..SP4.520.023..Read.Only.
+X8941_6_Machine.Status..Down.Time..SC..SP8.941.006.
