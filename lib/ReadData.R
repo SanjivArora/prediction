@@ -9,10 +9,9 @@ only_numeric <- function(df) {
 }
 
 
-read_data <- function(date, model, data_days, sources, features=c()) {
-  dfs <- dataframes_for_model(date, model, days=data_days, sources=sources)
+read_data <- function(date, models, data_days, sources, features=c()) {
+  dfs <- dataframes_for_models(date, models, days=data_days, sources=sources)
   aug <- augment_with_deltas(dfs)
-  
   # Select features, default to all
   all_names <- names(aug[[1]])
   fs <- get_feature_names(features, all_names)
@@ -25,8 +24,8 @@ read_data <- function(date, model, data_days, sources, features=c()) {
 #read_data <- memoise(read_data)
 
 
-read_sc <- function(date, model, days, offset) {
-  sc_frames = dataframes_for_model(date, model, days=days, sources=c("SC"))
+read_sc <- function(date, models, days, offset) {
+  sc_frames = dataframes_for_models(date, models, days=days, sources=c("SC"))
   SC_codes <- process_datasets(sc_frames)
   
   selected_SC <- filter(

@@ -5,9 +5,13 @@ require(dplyr)
 require(memoise)
 require(doParallel)
 
-# Register doParallel as foreach backend, set number of processes to system core count (this is the number of virtual processors not physical cores)
-registerDoParallel(cores=detectCores())
-#registerDoParallel(cores=1)
+# Register doParallel as foreach backend, set number of processes
+
+ncores = detectCores() / 4
+registerDoParallel(cores=ncores)
+
+# Single process for debugging - allows seeing print() output from subprocesses, etc.
+#registerDoSEQ()
                    
 # MemoiseCache must be loaded first
 debugSource("lib/Util.R")
@@ -24,13 +28,15 @@ debugSource("lib/FeatureNames.R")
 
 
 #sources=c('Count', 'PMCount', 'Jam')
-sources=c('PMCount', 'Count') 
+#sources=c('PMCount', 'Count') 
+sources=c('PMCount') 
+
 
 library(profvis)
 #profvis({
  
 # Number of days of predictor data files to use for training
-data_days = 40 #31
+data_days = 31 # 31
 # We can calculate deltas for 1 day less than data_days
 delta_days = data_days-1
 # The number of days to average values over
@@ -39,17 +45,18 @@ window_days = 3 #7
 offset = window_days + 2
 
 # data_days to use if we have a separate train and test time periods
-test_data_days = 20
+test_data_days = 14
 test_delta_days = test_data_days-1
 
 
-model='RNZ_E16'
-#m='RNZ_C50'
-#m='RNZ_C72'
+models= c(
+  'RNZ_E16',
+  'RNZ_E15'
+)
 
 
 features = c(
-  'test5.txt'
+  #'test5.txt'
 )
 
 daily_features = c(
@@ -64,7 +71,7 @@ nocache = FALSE
 
 use_separate_test_dataset = TRUE
 
-#test_date = get_latest_date(model)
+#test_date = get_latest_date(models)
 test_date = lubridate::as_date('20180730')
 
 if(use_separate_test_dataset) {
@@ -88,8 +95,8 @@ test_control_size_multiple = NULL
 if(nocache) {
   # Run the folowing lines manually for quick purge
   forget(read_data)
-  forget(files_for_model)
-  forget(dataframes_for_model)
+  forget(files_for_models)
+  forget(dataframes_for_models)
   forget(read_sc)
   # To here
 }
@@ -98,7 +105,7 @@ if(nocache) {
 # Get Dates
 ################################################################################
 
-#files <- files_for_model(train_date, model, days=data_days, sources=sources)
+#files <- files_for_models(train_date, models, days=data_days, sources=sources)
 #dates <- lapply(unlist(files), get_date)
 #oldest_data <- min_date(dates)
 #oldest_delta <- oldest_data + lubridate::days(1)
@@ -130,8 +137,8 @@ set.seed(101)
 
 if(!use_separate_test_dataset) {
   train_predictor_date <- predictor_date(train_date, offset)
-  predictors_raw_SC <- read_data(train_predictor_date, model, data_days, sources, fs)
-  index_to_code_SC <- read_sc(train_date, model, data_days, offset)
+  predictors_raw_SC <- read_data(train_predictor_date, models, data_days, sources, fs)
+  index_to_code_SC <- read_sc(train_date, models, data_days, offset)
   index_to_code_train_SC <- index_to_code_SC
   index_to_code_test_SC <- index_to_code_SC
   predictors_SC <- get_dataset(train_predictor_date, predictors_raw_SC, index_to_code_SC, window_days, delta_days, offset)
@@ -142,12 +149,12 @@ if(!use_separate_test_dataset) {
   # Otherwise get train and test sets from the specified periods
 } else {
   train_predictor_date <- predictor_date(train_date, offset)
-  predictors_raw_train_SC <- read_data(train_predictor_date, model, data_days, sources, fs)
-  index_to_code_train_SC <- read_sc(train_date, model, data_days, offset)
+  predictors_raw_train_SC <- read_data(train_predictor_date, models, data_days, sources, fs)
+  index_to_code_train_SC <- read_sc(train_date, models, data_days, offset)
   train_SC <- get_dataset(train_predictor_date, predictors_raw_train_SC, index_to_code_train_SC, window_days, delta_days, offset)
   test_predictor_date <- predictor_date(test_date, offset)
-  predictors_raw_test_SC <- read_data(test_predictor_date, model, test_data_days, sources, fs)
-  index_to_code_test_SC <- read_sc(test_date, model, data_days, offset)
+  predictors_raw_test_SC <- read_data(test_predictor_date, models, test_data_days, sources, fs)
+  index_to_code_test_SC <- read_sc(test_date, models, data_days, offset)
   test_SC <- get_dataset(test_predictor_date, predictors_raw_test_SC, index_to_code_test_SC, window_days, test_delta_days, offset, control_size_multiple=test_control_size_multiple)
 }
 
@@ -188,9 +195,10 @@ mtry = 100
 nodesize = 5
 # Default is 500
 #ntree=500
-ntree=1000
+ntree=100
+nruns=16
 
-r_SC <- foreach(ntree=rep(ntree, 6), .combine=combine, .multicombine=TRUE, .packages='randomForest') %dopar% {
+r_SC <- foreach(ntree=rep(ntree, nruns), .combine=combine, .multicombine=TRUE, .packages='randomForest') %dopar% {
   randomForest(
     train_samples,
     f_response_train_samples,

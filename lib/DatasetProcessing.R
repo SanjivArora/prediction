@@ -60,7 +60,7 @@ get_index_to_data <- function(all_dfs, indices, start_dates, delta_days, latest_
     }
     part
   }
-
+  
   values <- foreach(index=indices) %dopar% {
     data <- list()
     for(part in parts) {

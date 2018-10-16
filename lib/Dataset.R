@@ -42,7 +42,7 @@ get_names <- function (last_date, prefix, files=NA, days=default_days) {
   }
   fs <- sort(unlist(matching), decreasing = TRUE)
   if(length(fs)<days) {
-    stop("Not enough data files for selected number of days")
+    stop(paste("Not enough data files for selected number of days for", prefix))
   }
   res <- list()
   for (day in 1:days) {
@@ -62,10 +62,18 @@ prefixes_for_model = function(model, sources=default_sources) {
   )
 }
 
-files_for_model <- function (date, model, days=default_days, sources=default_sources) {
-  return (map(prefixes_for_model(model, sources=sources), function(model) get_names(date, model, days=days)))
+prefixes_for_models = function(models, sources=default_sources) {
+  prefix_sets <- foreach(m=models) %do% {
+    prefixes_for_model(m, sources)
+  }
+  return(unlist(prefix_sets))
 }
-#files_for_model <- memoise(files_for_model, cache=fs_cache)
+
+files_for_models <- function (date, models, days=default_days, sources=default_sources) {
+  prefixes <- prefixes_for_models(models, sources=sources)
+  file_sets <- map(prefixes, function(prefix) get_names(date, prefix, days=days))
+}
+#files_for_models <- memoise(files_for_models, cache=fs_cache)
 
 matching_files <- function(files_list){
   length(unique(map(files_list,function (x) substrRight(x,12))))==1
@@ -126,9 +134,19 @@ filename_tuples<-function(files_list){
   return(res)
 }
 
+# Rewrite of Serial as concatenation of Model and Serial 
+rewrite_serial <- function(df) {
+  df$Serial <- paste(df$Model, df$Serial, sep="")
+  return(df)
+}
+
 # Accept a set of filenames, load data from each and return dataframe merged on 'Serial'. Set row name to serial number.
 load_data <- function(file_set) {
   dataframes <- files_upload(file_set)
+  # Rewrite Serial as concatenation of Model and Serial
+  dataframes <- foreach(df=dataframes) %do% {
+    rewrite_serial(df)
+  }
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
     for (frame in dataframes[2:length(dataframes)]) {
@@ -140,13 +158,35 @@ load_data <- function(file_set) {
 }
 
 dataframes_for_model <- function(date, model, days=default_days, sources=default_sources) {
-  fs <- files_for_model(date, model, days=days, sources=sources)
+  fs <- files_for_models(date, c(model), days=days, sources=sources)
   tuples <- filename_tuples(fs)
-  #res <- map(tuples, load_data)
   res <- foreach(x=tuples) %dopar% load_data(x)
   return(res)
 } 
-#dataframes_for_model <- memoise(dataframes_for_model, cache=fs_cache)
+#dataframes_for_model <- memoise(dataframes_for_models, cache=fs_cache)
+
+dataframes_for_models <- function(date, models, days=default_days, sources=default_sources) {
+  by_model <- map(models, function(model) dataframes_for_model(date, model, days, sources))
+  lengths <- map(by_model, length)
+  if(length(unique(lengths))!=1) {
+    stop("Number of days of data differs by model")
+  }
+  l <- lengths[[1]]
+  res <- replicate(l, list())
+  for(m_data in by_model) {
+    for(i in 1:l) {
+      res[[i]] <- append(res[[i]], list(m_data[[i]]))
+    }
+  }
+  res <- map(res, bind_rows)
+  # TODO: make unique by serial (take first), warn about duplicate serials
+  # Reset row names
+  res <- foreach(dt=res) %do% {
+    row.names(dt) <- unlist(dt[,'Serial'])
+    dt
+  }
+  return(res)
+}
 
 common_serials <- function(dataframes) {
   serials <- map(dataframes, function(df) df["Serial"])
