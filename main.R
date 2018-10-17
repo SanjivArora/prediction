@@ -4,14 +4,16 @@
 require(dplyr)
 require(memoise)
 require(doParallel)
+require(parallel)
 
-# Register doParallel as foreach backend, set number of processes
 
-ncores = detectCores() / 4
-registerDoParallel(cores=ncores)
+ncores = detectCores() / 2
 
-# Single process for debugging - allows seeing print() output from subprocesses, etc.
-#registerDoSEQ()
+# Wrap parallel lapply implementation to allow easy debugging and change of backend
+plapply <- function(l, f) {
+  mclapply(l, f, mc.cores=ncores, mc.cleanup=TRUE)
+}
+
                    
 # MemoiseCache must be loaded first
 debugSource("lib/Util.R")
@@ -198,18 +200,20 @@ nodesize = 5
 ntree=100
 nruns=16
 
-r_SC <- foreach(ntree=rep(ntree, nruns), .combine=combine, .multicombine=TRUE, .packages='randomForest') %dopar% {
+
+wrap_rf <- function(null) {
   randomForest(
     train_samples,
     f_response_train_samples,
-    ntree=ntree,
+    ntree=ntree
     #mtry=mtry,
     #nodesize=nodesize,
   )
 }
 
-
-print(r_SC)
+r_SC_parts <- plapply(1:nruns, wrap_rf)
+r_SC <- do.call(randomForest::combine, r_SC_parts)
+#print(r_SC)
 
 ################################################################################
 # SC Predict

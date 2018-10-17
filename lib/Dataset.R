@@ -63,9 +63,9 @@ prefixes_for_model = function(model, sources=default_sources) {
 }
 
 prefixes_for_models = function(models, sources=default_sources) {
-  prefix_sets <- foreach(m=models) %do% {
+  prefix_sets <- lapply(models, function(m) {
     prefixes_for_model(m, sources)
-  }
+  })
   return(unlist(prefix_sets))
 }
 
@@ -144,9 +144,7 @@ rewrite_serial <- function(df) {
 load_data <- function(file_set) {
   dataframes <- files_upload(file_set)
   # Rewrite Serial as concatenation of Model and Serial
-  dataframes <- foreach(df=dataframes) %do% {
-    rewrite_serial(df)
-  }
+  dataframes <- lapply(dataframes, rewrite_serial)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
     for (frame in dataframes[2:length(dataframes)]) {
@@ -160,7 +158,7 @@ load_data <- function(file_set) {
 dataframes_for_model <- function(date, model, days=default_days, sources=default_sources) {
   fs <- files_for_models(date, c(model), days=days, sources=sources)
   tuples <- filename_tuples(fs)
-  res <- foreach(x=tuples) %dopar% load_data(x)
+  res <- plapply(tuples, load_data)
   return(res)
 } 
 #dataframes_for_model <- memoise(dataframes_for_models, cache=fs_cache)
@@ -181,10 +179,10 @@ dataframes_for_models <- function(date, models, days=default_days, sources=defau
   res <- map(res, bind_rows)
   # TODO: make unique by serial (take first), warn about duplicate serials
   # Reset row names
-  res <- foreach(dt=res) %do% {
+  res <- plapply(res, function (dt) {
     row.names(dt) <- unlist(dt[,'Serial'])
-    dt
-  }
+    return(dt)
+  })
   return(res)
 }
 

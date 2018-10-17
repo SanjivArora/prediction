@@ -16,14 +16,13 @@ extract_serial <- function(index_string) {
 # Accept a hash mapping indices to list of individual row dataframes, return a single dataframe with labeled rows and median values
 group_map_to_df <- function(h) {
   means_list <- list()
-  idxs <- keys(h)
-  means_list <- foreach(idx=idxs) %dopar% {
-    dfs <- h[[idx]]
-    Reduce(`+`, dfs) / length(dfs)
-  }
+  means_list <- plapply(values(h), function(dfs) {
+    #Reduce(`+`, dfs) / length(dfs)
+    dfs[[1]]
+  })
   res <- rbindlist(means_list)
   res <- as.data.frame(res)
-  row.names(res) <- idxs
+  row.names(res) <- keys(h)
   return(res)
 }
 
@@ -33,11 +32,14 @@ get_index_to_data <- function(all_dfs, indices, start_dates, delta_days, latest_
   
   serials <- lapply(indices, extract_serial)
   
-  parts <- foreach(i=1:delta_days) %dopar% {
+  print("Iterating over days of data")
+  parts <- plapply(1:delta_days, function(i) {
     part <- hash()
     print(paste("Processing", i, "of", delta_days))
     current_date <- latest_delta - lubridate::days(i-1)
     day_data <- all_dfs[[i]]
+    
+    # Build list of current indices
     current <- list()
     for(j in 1:length(indices)) {
       index <- indices[[j]]
@@ -47,29 +49,30 @@ get_index_to_data <- function(all_dfs, indices, start_dates, delta_days, latest_
       }
     }
     
+    # Build index -> [row] map
     for(j in 1:length(current)) {
       if(length(current)!=0) {
-        rows <- day_data[unlist(serials),]
         index <- current[[j]]
-        row <- rows[j,]
+        row <- day_data[j,]
         # Only add row if we have valid data
         if(!all(is.na(row))) {
           part[[index]] <- row
         }
       }
     }
-    part
-  }
+    return(part)
+  })
   
-  values <- foreach(index=indices) %dopar% {
+  print("Building list of values")
+  values <- plapply(indices, function(index) {
     data <- list()
     for(part in parts) {
       if(has.key(index, part)[[1]]) {
         data <- append(data, list(part[[index]]))
       }
     }
-    data
-  }
+    return(data)
+  })
 
   # Only use indices that have data
   filtered_indices <- list()
@@ -125,8 +128,8 @@ get_control_data <- function(all_dfs, index_to_code, window_days, delta_days, la
   oldest_delta <- latest_delta - (delta_days - 1)
   start_dates <- sample(seq(oldest_delta, latest_delta, by="day"), n_controls, replace=TRUE)
   index_to_control_data <- get_index_to_data(all_dfs, serials, start_dates, delta_days, latest_delta, offset)
-  data <- group_map_to_df(index_to_control_data)
   print("Restructuring control data")
+  data <- group_map_to_df(index_to_control_data)
   return(data)
 }
 
