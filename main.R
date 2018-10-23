@@ -42,7 +42,7 @@ data_days = 31 # 31
 # We can calculate deltas for 1 day less than data_days
 delta_days = data_days-1
 # The number of days to average values over
-window_days = 3 #7
+window_days = 5 #7
 # End of data window for code is this many days back from code date, i.e. notionally predict this far into the future
 offset = window_days + 2
 

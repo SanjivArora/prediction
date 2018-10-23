@@ -11,6 +11,8 @@ require(doParallel)
 
 #source("Util.R")
 #source("Dates.R")
+source("lib/DataFile.R")
+source("lib/Util.R")
 
 default_sources=c('Count', 'PMCount')
 default_days=7
@@ -30,74 +32,6 @@ get_latest_date <- function(prefix="") {
   return(latest)
 }
 
-get_names <- function (last_date, prefix, files=NA, days=default_days) {
-  pattern <- paste("^", prefix, sep="")
-  files=list.files(base_path,pattern=pattern)
-  matching <- list()
-  for (f in files) {
-    date <- get_date(f, prefix)
-    if(!is.na(date) && date <= last_date) {
-      matching <- append(matching, f)
-    }
-  }
-  fs <- sort(unlist(matching), decreasing = TRUE)
-  if(length(fs)<days) {
-    stop(paste("Not enough data files for selected number of days for", prefix))
-  }
-  res <- list()
-  for (day in 1:days) {
-    f <- fs[day]
-    correct_date <- last_date - lubridate::days(day-1)
-    date <- get_date(f, prefix)
-    if(date != correct_date) {
-      stop(paste("Missing file for", correct_date, "for", prefix))
-    }
-  }
-  return(fs[1:days])
-}
-
-prefixes_for_model = function(model, sources=default_sources) {
-  return (
-    map(sources, function (source) paste(model, source, sep="_"))
-  )
-}
-
-prefixes_for_models = function(models, sources=default_sources) {
-  prefix_sets <- lapply(models, function(m) {
-    prefixes_for_model(m, sources)
-  })
-  return(unlist(prefix_sets))
-}
-
-files_for_models <- function (date, models, days=default_days, sources=default_sources) {
-  prefixes <- prefixes_for_models(models, sources=sources)
-  file_sets <- map(prefixes, function(prefix) get_names(date, prefix, days=days))
-}
-#files_for_models <- memoise(files_for_models, cache=fs_cache)
-
-matching_files <- function(files_list){
-  length(unique(map(files_list,function (x) substrRight(x,12))))==1
-}
-
-# Read CSV file
-read_file <- function(name) {
-  df <- read.csv(file.path(base_path, name), header = TRUE, na.strings=c("","NA"))
-  df <- update_types(df)
-  return(df)
-}
-
-update_types <- function(df) {
-  df <- transform(
-    df,
-    Serial = as.character(Serial)
-  )
-}
-
-files_upload <- function (list_of_files) {
-  if(matching_files(list_of_files)==TRUE){
-    return (map(list_of_files, read_file))
-  } else {print("Files dates do not match")}
-}
 
 num_columns <- function(data){
   nums <- unlist(lapply(data, is.numeric))
@@ -116,49 +50,11 @@ normalize <- function(data) {
   return(res)
 }
 
-# Accept a listing of files for each type, return a list of sets of files containing one for each type
-filename_tuples<-function(files_list){
-  lengths <- map(files_list, length)
-  if (!length(unique(lengths))==1) {
-    stop("Mismatching number of files")
-  }
-  # TODO: check dates match for each file
-  n <- length(files_list)
-  res <- list()
-  for (i in 1:lengths[[1]]) {
-    res[[i]]<-list()
-    for (j in 1:n) {
-      res[[i]][[j]]<-files_list[[j]][[i]]
-    }
-  }
-  return(res)
-}
-
-# Rewrite of Serial as concatenation of Model and Serial 
-rewrite_serial <- function(df) {
-  df$Serial <- paste(df$Model, df$Serial, sep="")
-  return(df)
-}
-
-# Accept a set of filenames, load data from each and return dataframe merged on 'Serial'. Set row name to serial number.
-load_data <- function(file_set) {
-  dataframes <- files_upload(file_set)
-  # Rewrite Serial as concatenation of Model and Serial
-  dataframes <- lapply(dataframes, rewrite_serial)
-  res <- dataframes[[1]]
-  if(length(dataframes) >= 2) {
-    for (frame in dataframes[2:length(dataframes)]) {
-      res <- merge(res, frame, by.x = "Serial",by.y = "Serial")
-    }
-  }
-  row.names(res) <- unlist(res[,'Serial'])
-  return(res)
-}
-
 dataframes_for_model <- function(date, model, days=default_days, sources=default_sources) {
-  fs <- files_for_models(date, c(model), days=days, sources=sources)
-  tuples <- filename_tuples(fs)
-  res <- plapply(tuples, load_data)
+  first_date = date - lubridate::days(days-1)
+  datafiles <- instancesForDir()
+  datafiles <- filterBy(datafiles, function(x) x$model==model && x$date >= first_date && x$date <=date && x$source %in% sources)
+  res <- plapply(datafiles, function (x) x$getDataFrame())
   return(res)
 } 
 #dataframes_for_model <- memoise(dataframes_for_models, cache=fs_cache)
