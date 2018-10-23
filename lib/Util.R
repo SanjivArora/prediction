@@ -31,7 +31,20 @@ filterBy <- function(xs, f) {
   hits <- list()
   for(x in xs)
     if(f(x)) {
-      append(hits, x)
+      hits <- append(hits, x)
     }
   return(hits)
+}
+
+# Join paths, with absolute paths replacing previous components
+joinPaths <- function(...) {
+  joinTwo <- function(p1, p2) {
+    if(isAbsolutePath(p2)) {p2} else {filePath(p1, p2)}
+  }
+  parts <- list(...)
+  while(length(parts) > 1) {
+    p1 <- joinTwo(parts[[1]], parts[[2]])
+    parts <- append(list(p1), tail(parts, length(parts)-2))
+  }
+  return(parts[[1]])
 }

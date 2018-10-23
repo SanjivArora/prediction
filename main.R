@@ -13,7 +13,7 @@ ncores = detectCores() / 2
 plapply <- function(l, f) {
   mclapply(l, f, mc.cores=ncores, mc.cleanup=TRUE)
 }
-
+#plapply <- lapply
                    
 # MemoiseCache must be loaded first
 debugSource("lib/Util.R")
@@ -27,7 +27,7 @@ debugSource("lib/Processing.R")
 debugSource("lib/DatasetProcessing.R")
 debugSource("lib/FeatureSelection.R")
 debugSource("lib/FeatureNames.R")
-
+debugSource("lib/Feature.R")
 
 #sources=c('Count', 'PMCount', 'Jam')
 #sources=c('PMCount', 'Count') 

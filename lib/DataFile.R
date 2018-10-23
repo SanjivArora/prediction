@@ -1,6 +1,8 @@
 require(stringr)
 require(lubridate)
 
+source('lib/Util.R')
+
 default_sources=c('Count', 'PMCount')
 base_path="~/data/"
 timezone="UTC"
@@ -28,7 +30,7 @@ DataFile <- setRefClass("DataFile",
       }
     },
     getDate = function() {.self$test},
-    getFullPath = function() {file.path(base_path, path)},
+    getFullPath = function() {joinPaths(base_path, path)},
     getDataFrame = function() {
       df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=c("","NA"))
       # Force serial to be a string
