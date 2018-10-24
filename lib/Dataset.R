@@ -52,9 +52,6 @@ normalize <- function(data) {
 
 dataframes_for_model <- function(date, model, days=default_days, sources=default_sources) {
   first_date = date - lubridate::days(days-1)
-  model_parts <- strsplit(model, "_")[[1]]
-  region <- model_parts[[1]]
-  m <- model_parts[[2]]
   datafiles <- instancesForDir()
   datafiles <- filterBy(datafiles, function(x) x$region==region && x$model==m && x$date >= first_date && x$date <=date && x$source %in% sources)
   res <- plapply(datafiles, function (x) x$getDataFrame())

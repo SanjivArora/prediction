@@ -38,22 +38,26 @@ library(profvis)
 #profvis({
  
 # Number of days of predictor data files to use for training
-data_days = 31 # 31
+data_days = 7 # 31
 # We can calculate deltas for 1 day less than data_days
 delta_days = data_days-1
 # The number of days to average values over
-window_days = 5 #7
+window_days = 2 #7
 # End of data window for code is this many days back from code date, i.e. notionally predict this far into the future
 offset = window_days + 2
 
 # data_days to use if we have a separate train and test time periods
-test_data_days = 14
+test_data_days = 3
 test_delta_days = test_data_days-1
 
 
+regions = c(
+  'RNZ'
+)
+
 models= c(
-  'RNZ_E16',
-  'RNZ_E15'
+  'E16',
+  'E15'
 )
 
 
@@ -91,19 +95,6 @@ if(test_date < train_date + test_data_days) {
 test_control_size_multiple = NULL
 
 ################################################################################
-# Purge memoization cache
-################################################################################
-
-if(nocache) {
-  # Run the folowing lines manually for quick purge
-  forget(read_data)
-  forget(files_for_models)
-  forget(dataframes_for_models)
-  forget(read_sc)
-  # To here
-}
-
-################################################################################
 # Get Dates
 ################################################################################
 
@@ -125,6 +116,13 @@ fs <- append(
  
 # TODO: Investigate apparent effect of feature order on RandomTree implementation
 #fs<-sample(fs)
+
+
+################################################################################
+# SC Codes
+################################################################################
+
+codes <- codesForRegionsAndModels(regions, models)
 
 
 ################################################################################
@@ -233,5 +231,5 @@ print(cm1_SC)
 # Feature Selection
 ################################################################################
 
-selected <- feature_selection(train_samples, f_response_train_samples)
-write_features(selected)
+#selected <- feature_selection(train_samples, f_response_train_samples)
+#write_features(selected)

@@ -19,6 +19,9 @@ DataFile <- setRefClass("DataFile",
   methods = list(
     initialize = function(...) {
       callSuper(...)
+      if (!file.exists(.self$getFullPath())) {
+        stop(paste("File does not exist at: ", .self$getFullPath()))
+      }
       parts <- .self$pathToParts(.self$path)
       .self$region <- parts[[1]]
       .self$model <- parts[[2]]
@@ -40,6 +43,8 @@ DataFile <- setRefClass("DataFile",
       )
       # Rewrite serial as concatenation of model and partial serial (i.e. as actual serial)
       df$Serial <- paste(df$Model, df$Serial, sep="")
+      # Set row names to Serial
+      row.names(df) <- unlist(df[,'Serial'])
       return(df)
     },
     # Accept a path to a data file and return list of strings for region, model, data type, date
@@ -71,7 +76,7 @@ dataFilesToDataframe <- function(instances) {
   return(res)
 }
 
-# Class method to return merged dataframe for a list of paths to files
+# Class method to return merged dataframe for a list of paths to files. Merge on Serial and set row names to serial numbers.
 pathsToDataFrame <- function(paths, cls=DataFile) {
   instances <- lapply(paths, function(path) cls(path=path))
   res <- dataFilesToDataframe(instances)
