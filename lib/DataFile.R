@@ -1,7 +1,9 @@
 require(stringr)
 require(lubridate)
+require(R.utils)
 
 source('lib/Util.R')
+source('lib/Parallel.R')
 
 default_sources=c('Count', 'PMCount')
 base_path="~/data/"
@@ -64,8 +66,13 @@ DataFile <- setRefClass("DataFile",
 # Reference classes have no supprt for class or static methods, so define functions that notionally belong to the class but not the instances here 
 
 # Class method to return merged dataframe from list of instances. Merge on Serial and set row names to serial numbers.
-dataFilesToDataframe <- function(instances) {
-  dataframes <- lapply(instances, function(instance) instance$getDataFrame())
+dataFilesToDataframe <- function(instances, parallel=TRUE) {
+  if(parallel) {
+    xapply <- plapply
+  } else {
+    xapply <- lapply
+  }
+  dataframes <- xapply(instances, function(instance) instance$getDataFrame())
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
     for (frame in dataframes[2:length(dataframes)]) {

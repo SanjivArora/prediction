@@ -4,8 +4,18 @@ substrRight <- function(x, n){
   substr(x, nchar(x)-n+1, nchar(x))
 }
 
+# If object is a hash, return list of values, otherwise return original object
+valuesIfHash <- function(x) {
+  if(class(x)=="hash") {
+    return(values(x, simplify=FALSE))
+  } else {
+    return(x)
+  }
+}
+
 # Take a list/vector of objects and a function mapping objects to keys, return a list of objects grouped by string representation of key
 groupBy <- function(xs, f) {
+  xs <- valuesIfHash(xs)
   h <- hash()
   for(x in xs) {
     key <- f(x)
@@ -16,23 +26,27 @@ groupBy <- function(xs, f) {
     } else {
       l <- list()
     }
-    h[[key]] <- append(l, x)
+    h[[key]] <- append(l, list(x))
   }
   return(h)
 }
 
 # Take a list/vector of objects and a function mapping object to orderable key, and return objects sorted by key
 sortBy <- function(xs, f) {
-  xs[order(unlist(lapply(xs, f)))]
+  xs <- valuesIfHash(xs)
+  res <- xs[order(unlist(lapply(xs, f)))]
+  return(res)
 }
 
 # Takea list/vector of objects and a boolean function and return objects where function is true
 filterBy <- function(xs, f) {
+  xs <- valuesIfHash(xs)
   hits <- list()
-  for(x in xs)
+  for(x in xs) {
     if(f(x)) {
-      hits <- append(hits, x)
+      hits <- append(hits, list(x))
     }
+  }
   return(hits)
 }
 
@@ -47,4 +61,24 @@ joinPaths <- function(...) {
     parts <- append(list(p1), tail(parts, length(parts)-2))
   }
   return(parts[[1]])
+}
+
+# Return a list of individual row dataframes
+splitDataframe <- function(df) {
+  res <- list()
+  len <- nrow(df)
+  if(len==0) {return(res)}
+  for(i in 1:len) {
+    res <- append(res, list(df[i,]))
+  }
+  return(res)
+}
+
+# Attempt to get a value from a hash. If the key exists return the value, otherwise return the default value.
+getWithDefault <- function(h, key, default) {
+  if(has.key(key, h)[[1]]) {
+    return(h[[key]])
+  } else {
+    return(default)
+  }
 }

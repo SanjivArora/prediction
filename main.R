@@ -7,15 +7,11 @@ require(doParallel)
 require(parallel)
 
 
-ncores = detectCores() / 2
 
-# Wrap parallel lapply implementation to allow easy debugging and change of backend
-plapply <- function(l, f) {
-  mclapply(l, f, mc.cores=ncores, mc.cleanup=TRUE)
-}
 #plapply <- lapply
                    
 # MemoiseCache must be loaded first
+debugSource("lib/Parallel.R")
 debugSource("lib/Util.R")
 debugSource("lib/Dates.R")
 debugSource("lib/MemoiseCache.R")
@@ -28,10 +24,12 @@ debugSource("lib/DatasetProcessing.R")
 debugSource("lib/FeatureSelection.R")
 debugSource("lib/FeatureNames.R")
 debugSource("lib/Feature.R")
+debugSource("lib/SCFile.R")
+debugSource("lib/Sampling.R")
 
 #sources=c('Count', 'PMCount', 'Jam')
-#sources=c('PMCount', 'Count') 
-sources=c('PMCount') 
+sources=c('PMCount', 'Count') 
+#sources=c('PMCount') 
 
 
 library(profvis)
@@ -39,16 +37,13 @@ library(profvis)
  
 # Number of days of predictor data files to use for training
 data_days = 7 # 31
-# We can calculate deltas for 1 day less than data_days
-delta_days = data_days-1
-# The number of days to average values over
-window_days = 2 #7
-# End of data window for code is this many days back from code date, i.e. notionally predict this far into the future
-offset = window_days + 2
 
-# data_days to use if we have a separate train and test time periods
-test_data_days = 3
-test_delta_days = test_data_days-1
+# Maximum number of days to predict SC code
+sc_code_days = 3
+
+#window_days = 2 #7
+
+
 
 
 regions = c(
@@ -124,6 +119,13 @@ fs <- append(
 
 codes <- codesForRegionsAndModels(regions, models)
 
+################################################################################
+# Sample dataset
+################################################################################
+
+data_files <- instancesForDir()
+data_files_small <- data_files[1:50]
+sampleDataset(data_files_small, sources, codes, max_days=sc_code_days)
 
 ################################################################################
 # Train and test datasets
