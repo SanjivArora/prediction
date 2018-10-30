@@ -26,6 +26,8 @@ debugSource("lib/FeatureNames.R")
 debugSource("lib/Feature.R")
 debugSource("lib/SCFile.R")
 debugSource("lib/Sampling.R")
+debugSource("lib/Logging.R")
+debugSource("lib/DataFile.R")
 
 #sources=c('Count', 'PMCount', 'Jam')
 sources=c('PMCount', 'Count') 
@@ -123,48 +125,36 @@ codes <- codesForRegionsAndModels(regions, models)
 # Sample dataset
 ################################################################################
 
+
+# Set Seed so that same sample can be reproduced in future
+set.seed(101) 
+
 data_files <- instancesForDir()
-data_files_small <- data_files[1:50]
-sampleDataset(data_files_small, sources, codes, max_days=sc_code_days)
+
+# Restrict data set for debugging
+file_sets <- getDailyFileSets(data_files, sources)
+data_files <- unlist(file_sets[1:10])
+
+c <- sampleDataset(data_files, sources, codes, sc_days=sc_code_days)
 
 ################################################################################
 # Train and test datasets
 ################################################################################
 
-# Set Seed so that same sample can be reproduced in future
-set.seed(101) 
-
 # If we aren't using a separate test dataset, split out train and test
 # Select 75% of data for training set, 25% for test set
 
-if(!use_separate_test_dataset) {
-  train_predictor_date <- predictor_date(train_date, offset)
-  predictors_raw_SC <- read_data(train_predictor_date, models, data_days, sources, fs)
-  index_to_code_SC <- read_sc(train_date, models, data_days, offset)
-  index_to_code_train_SC <- index_to_code_SC
-  index_to_code_test_SC <- index_to_code_SC
-  predictors_SC <- get_dataset(train_predictor_date, predictors_raw_SC, index_to_code_SC, window_days, delta_days, offset)
-  
-  sample_SC <- sample.int(n = nrow(predictors_SC), size = floor(.75*nrow(predictors_SC)), replace = F)
-  train_SC <- predictors_SC[sample_SC, ]
-  test_SC <- predictors_SC[-sample_SC, ]
-  # Otherwise get train and test sets from the specified periods
-} else {
-  train_predictor_date <- predictor_date(train_date, offset)
-  predictors_raw_train_SC <- read_data(train_predictor_date, models, data_days, sources, fs)
-  index_to_code_train_SC <- read_sc(train_date, models, data_days, offset)
-  train_SC <- get_dataset(train_predictor_date, predictors_raw_train_SC, index_to_code_train_SC, window_days, delta_days, offset)
-  test_predictor_date <- predictor_date(test_date, offset)
-  predictors_raw_test_SC <- read_data(test_predictor_date, models, test_data_days, sources, fs)
-  index_to_code_test_SC <- read_sc(test_date, models, data_days, offset)
-  test_SC <- get_dataset(test_predictor_date, predictors_raw_test_SC, index_to_code_test_SC, window_days, test_delta_days, offset, control_size_multiple=test_control_size_multiple)
-}
 
-response_train_bool_SC <- row.names(train_SC) %in% keys(index_to_code_train_SC)
-response_test_bool_SC <- row.names(test_SC) %in% keys(index_to_code_test_SC)
+#sample_SC <- sample.int(n = nrow(predictors_SC), size = floor(.75*nrow(predictors_SC)), replace = F)
+#train_SC <- predictors_SC[sample_SC, ]
+#test_SC <- predictors_SC[-sample_SC, ]
 
-response_train_SC <- as.numeric(response_train_bool_SC)
-response_test_SC <- as.numeric(response_test_bool_SC)
+
+# response_train_bool_SC <- row.names(train_SC) %in% keys(index_to_code_train_SC)
+# response_test_bool_SC <- row.names(test_SC) %in% keys(index_to_code_test_SC)
+# 
+# response_train_SC <- as.numeric(response_train_bool_SC)
+# response_test_SC <- as.numeric(response_test_bool_SC)
 
 #})
 ################################################################################

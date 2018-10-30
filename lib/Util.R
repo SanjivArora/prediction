@@ -34,6 +34,9 @@ groupBy <- function(xs, f) {
 # Take a list/vector of objects and a function mapping object to orderable key, and return objects sorted by key
 sortBy <- function(xs, f) {
   xs <- valuesIfHash(xs)
+  if(length(xs) == 0) {
+    return(xs)
+  }
   res <- xs[order(unlist(lapply(xs, f)))]
   return(res)
 }
@@ -43,7 +46,9 @@ filterBy <- function(xs, f) {
   xs <- valuesIfHash(xs)
   hits <- list()
   for(x in xs) {
-    if(f(x)) {
+    # Count empty objects as false
+    val <- f(x)
+    if(!is_empty(val) && f(x)) {
       hits <- append(hits, list(x))
     }
   }

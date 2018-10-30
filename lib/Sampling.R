@@ -2,6 +2,10 @@ require(hash)
 
 source("lib/Util.R")
 source("lib/Parallel.R")
+source("lib/Logging.R")
+
+# R's idiosyncratic handling of namespaces / environments requires that we don't do the obvious thing and call this "log", since the reference would be overridden elsewhere.
+sampling_log <- getModuleLogger("Sampling")
 
 # Return groups of daily predictor data files where all required sources are present for a model on a given day. Sort these by date.
 getFileSets <- function(data_files, required_sources) {
@@ -33,7 +37,7 @@ InstanceCounter <- setRefClass(
     # Dataframe of code instances
     codes = "data.frame",
     # Look ahead 0-n days to check for code
-    max_days = "numeric",
+    sc_days = "numeric",
     ###################
     # Private variables
     ###################
@@ -56,12 +60,13 @@ InstanceCounter <- setRefClass(
     },
     # Accept a dataframe for predictor data for the day - expects to be called in order but OK to skip calls for days with no data
     processDay = function(day_data, date) {
+      sampling_log$debug(paste("Processing", date))
       serials <- day_data$Serial
       for(serial in serials) {
         cs <- .self$serial_to_codes[[serial]]
         hits <- filterBy(cs, function(c) {
           delta <- c$OCCUR_DATE - date
-          in_window <- delta >= 0 && delta <= max_days
+          in_window <- delta >= 0 && delta <= sc_days
           return(in_window)
         })
         for(c in hits) {
@@ -83,6 +88,7 @@ InstanceCounter <- setRefClass(
 # Call function for each day with valid data, pass a dataframe containing merged predictor data for that day. Run this in parallel over models and sources.
 visitPredictorDataframes <- function(data_files, required_sources, f) {
   daily_file_sets <- getDailyFileSets(data_files, required_sources)
+  sampling_log$debug(paste("Visiting", length(daily_file_sets), "daily data frames"))
   for(file_sets in daily_file_sets) {
     date <- file_sets[[1]][[1]]$date
     parts <- plapply(file_sets, function(fs) dataFilesToDataframe(fs))
@@ -92,8 +98,8 @@ visitPredictorDataframes <- function(data_files, required_sources, f) {
 }
 
 
-sampleDataset <- function(data_files, required_sources, sc_codes, max_days=14) {
-  counter <- InstanceCounter(codes=sc_codes, max_days=max_days)
+sampleDataset <- function(data_files, required_sources, sc_codes, sc_days=14) {
+  counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days)
   visitPredictorDataframes(data_files, required_sources, function(df, date) counter$processDay(df, date))
-  print(counter)
+  return(counter)
 }
