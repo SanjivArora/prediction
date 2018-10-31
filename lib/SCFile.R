@@ -12,6 +12,7 @@ source('lib/DataFile.R')
           # Select SCHistory columns ending with _<i>
           indices <- grepl(paste("SCHistory.*_", i, "$", sep=""), colnames(raw))
           x <- raw[,indices]
+          # Filter out rows with null serials
           x <- x[!is.na(x[,1]),]
           # Strip _<i> suffixes from column names 
           colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '.*(?=_\\d+$)'))
@@ -23,14 +24,16 @@ source('lib/DataFile.R')
           #Set data types
           x <- transform(x,
             Serial = as.character(Serial),
-            SC_CD = as.factor(SC_CD),
-            SC_SERIAL_CD = as.factor(SC_SERIAL_CD),
+            SC_CD = as.character(SC_CD),
+            SC_SERIAL_CD = as.character(SC_SERIAL_CD),
             SC_TOTAL = as.numeric(SC_TOTAL),
             OCCUR_DATE = as.Date(OCCUR_DATE),
             #    #TODO: merge date and time to datetime value
             OCCUR_TIME = as.character(OCCUR_TIME),
             OCCUR_DETAIL = as.character(OCCUR_DETAIL)
           )
+          # Filter out rows with null cpdes or dates
+          x <- x[!is.na(x$SC_CD) & !is.na(x$OCCUR_DATE),]
 
           parts <- append(parts, list(x))
         }

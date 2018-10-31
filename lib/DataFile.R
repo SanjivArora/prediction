@@ -67,12 +67,7 @@ DataFile <- setRefClass("DataFile",
 
 # Class method to return merged dataframe from list of instances. Merge on Serial and set row names to serial numbers.
 dataFilesToDataframe <- function(instances, parallel=TRUE) {
-  if(parallel) {
-    xapply <- plapply
-  } else {
-    xapply <- lapply
-  }
-  dataframes <- xapply(instances, function(instance) instance$getDataFrame())
+  dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
     for (frame in dataframes[2:length(dataframes)]) {

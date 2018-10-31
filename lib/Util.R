@@ -41,18 +41,43 @@ sortBy <- function(xs, f) {
   return(res)
 }
 
-# Takea list/vector of objects and a boolean function and return objects where function is true
+# Count empty objects as false
+isTrue <- function(x) {
+  !is_empty(x) && isTRUE(x)
+}
+
+# Filter list/vector/hash argument to values that are true where f(value) is true per isTrue
 filterBy <- function(xs, f) {
-  xs <- valuesIfHash(xs)
+  if (is.hash(xs)) {
+    filterX <- filterHashByValue
+  } else {
+    filterX <- filterListBy
+  }
+  res <- filterX(xs, f)
+  return(res)
+}
+
+# filterBy implementation for lists/vectors
+filterListBy <- function(xs, f) {
   hits <- list()
   for(x in xs) {
-    # Count empty objects as false
-    val <- f(x)
-    if(!is_empty(val) && f(x)) {
+    if(isTrue(f(x))) {
       hits <- append(hits, list(x))
     }
   }
   return(hits)
+}
+
+# filterBy implementation for hashes
+filterHashByValue <- function(h, f) {
+  res <- hash()
+  for(k in keys(h)) {
+    val <- h[[k]]
+    if(isTrue(f(val))) {
+      res[[k]] <- val
+    }
+  }
+  return(res)
 }
 
 # Join paths, with absolute paths replacing previous components
@@ -86,4 +111,53 @@ getWithDefault <- function(h, key, default) {
   } else {
     return(default)
   }
+}
+
+# Combine hashes, values in the second hash override values in the first
+updateHash <- function(h1, h2) {
+  hash(append(keys(h1), keys(h2)), append(values(h1), values(h2)))
+}
+
+# Combine hashes, values in the second hash are added to values in the first hash
+addHash <- function(h1, h2) {
+  res <- copy(h1)
+  for(k in keys(h2)) {
+    res[[k]] <- getWithDefault(h1, k, 0) + h2[[k]]
+  }
+  return(res)
+}
+
+# Return first hash without keys from second hash
+subtractHash <- function(h1, h2) {
+   res <- hash()
+   for(k in keys(h1)) {
+    if (!has.key(k, h2)[[1]]) {
+      res[[k]] <- h1[[k]]
+    }
+   }
+   return(res)
+}
+
+
+# Convert value to integer, maintaining average value. I.e. taking the mean of repeated applications of this function to x will converge to x.
+toIntegerStochastic <- function(x) {
+  integral_portion <- floor(x)
+  if(runif(1) > x - integral_portion) {
+    return(integral_portion + 1)
+  } else {
+    return(integral_portion)
+  }
+}
+
+# Deterministically select entire dataset if length(x) <= size, and repeate until length(x) > size.
+# At this point sample randomly without replacement, allowing non-integral size such that the average size is correct over repeated applications.
+stochasticSelection <- function(x, size) {
+  selected <- list()
+  while(size >= length(x)) {
+    selected <- append(selected, x)
+    size <- size - length(x)
+  }
+  sampled <- sample(x, toIntegerStochastic(size), replace=FALSE)
+  selected <- append(selected, sampled)
+  return(selected)
 }

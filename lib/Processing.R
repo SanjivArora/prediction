@@ -35,8 +35,8 @@ pre_process_datasets<-function(df) {
     Volume = as.numeric(Volume),
     Date = as.Date(Date),
     #    #TODO: merge date and time to datetime value
-    Time = as.factor(Time),
-    Detail = as.factor(Detail)
+    Time = as.character(Time),
+    Detail = as.character(Detail)
   )
   return(rows)
 }

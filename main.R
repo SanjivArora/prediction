@@ -29,6 +29,7 @@ debugSource("lib/Sampling.R")
 debugSource("lib/Logging.R")
 debugSource("lib/DataFile.R")
 
+
 #sources=c('Count', 'PMCount', 'Jam')
 sources=c('PMCount', 'Count') 
 #sources=c('PMCount') 
@@ -41,11 +42,7 @@ library(profvis)
 data_days = 7 # 31
 
 # Maximum number of days to predict SC code
-sc_code_days = 3
-
-#window_days = 2 #7
-
-
+sc_code_days = 1
 
 
 regions = c(
@@ -57,6 +54,7 @@ models= c(
   'E15'
 )
 
+parallel=TRUE
 
 features = c(
   #'test5.txt'
@@ -77,16 +75,16 @@ use_separate_test_dataset = TRUE
 #test_date = get_latest_date(models)
 test_date = lubridate::as_date('20180730')
 
-if(use_separate_test_dataset) {
-  # Allow a gap of test_data_days
-  train_date = test_date - 2*test_data_days
-} else {
-  train_data = test_date
-}
-
-if(test_date < train_date + test_data_days) {
-  stop("Test date must be at least data_days after train_date")
-}
+# if(use_separate_test_dataset) {
+#   # Allow a gap of test_data_days
+#   train_date = test_date - 2*test_data_days
+# } else {
+#   train_data = test_date
+# }
+# 
+# if(test_date < train_date + test_data_days) {
+#   stop("Test date must be at least data_days after train_date")
+# }
 
 #test_control_size_multiple = 1
 test_control_size_multiple = NULL
@@ -133,9 +131,21 @@ data_files <- instancesForDir()
 
 # Restrict data set for debugging
 file_sets <- getDailyFileSets(data_files, sources)
-data_files <- unlist(file_sets[1:10])
+data_files <- unlist(file_sets[1:3])
 
-c <- sampleDataset(data_files, sources, codes, sc_days=sc_code_days)
+
+require(profvis)
+#profvis({
+counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, parallel=parallel)
+print(counts$getCounts())
+counts$setTargetSC(100)
+counts$setTargetControl(100)
+predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_days, parallel=TRUE)
+#View(predictors[1:5,1:5])
+#})
+
+predictors <- predictors %>% mutate_if(sapply(predictors, is.factor), as.character)
+predictors <- replace_na(predictors)
 
 ################################################################################
 # Train and test datasets
@@ -145,43 +155,31 @@ c <- sampleDataset(data_files, sources, codes, sc_days=sc_code_days)
 # Select 75% of data for training set, 25% for test set
 
 
-#sample_SC <- sample.int(n = nrow(predictors_SC), size = floor(.75*nrow(predictors_SC)), replace = F)
-#train_SC <- predictors_SC[sample_SC, ]
-#test_SC <- predictors_SC[-sample_SC, ]
+sample_indices <- sample.int(n = nrow(predictors), size = floor(.75*nrow(predictors)), replace = F)
+train <- predictors[sample_indices, ]
+test <- predictors[-sample_indices, ]
 
 
-# response_train_bool_SC <- row.names(train_SC) %in% keys(index_to_code_train_SC)
-# response_test_bool_SC <- row.names(test_SC) %in% keys(index_to_code_test_SC)
-# 
-# response_train_SC <- as.numeric(response_train_bool_SC)
-# response_test_SC <- as.numeric(response_test_bool_SC)
+response_train_bool <- train$Serial %in% keys(counts$getSerialToCodes())
+response_test_bool <- test$Serial %in% keys(counts$getSerialToCodes())
 
-#})
+response_train <- as.numeric(response_train_bool)
+response_test <- as.numeric(response_test_bool)
+
+factorise <- function(x) {
+  factor(x, levels=min(x):max(x))
+}
+f_response_train <- factorise(response_train)
+f_response_test <- factorise(response_test)
+
 ################################################################################
-# SC Train
+# Model
 ################################################################################
 
 require(randomForest)
 require(caret)
 require(e1071)
-# require(gbm)
 
-
-### Rendom Forest ###
-f_response_train_SC <- as.factor(response_train_SC)
-f_response_test_SC <- as.factor(response_test_SC)
-
-# Random forest has issues with training on unbalanced classes, so sample equal classes
-n_samples = 1000
-positive <- train_SC[response_train_bool_SC,]
-negative <- train_SC[!response_train_bool_SC,]
-positive_samples <- positive[sample(nrow(positive), n_samples, replace=TRUE),]
-negative_samples <- negative[sample(nrow(negative), n_samples, replace=TRUE),]
-train_samples <- rbind(positive_samples, negative_samples)
-# Work around renaming of duplicated rows
-train_samples_rownames <- sub("\\..*$", "", row.names(train_samples))
-response_train_samples <- as.numeric(train_samples_rownames %in% keys(index_to_code_train_SC))
-f_response_train_samples <- as.factor(response_train_samples)
 
 mtry = 100
 nodesize = 5
@@ -193,16 +191,16 @@ nruns=16
 
 wrap_rf <- function(null) {
   randomForest(
-    train_samples,
-    f_response_train_samples,
+    train,
+    f_response_train,
     ntree=ntree
     #mtry=mtry,
     #nodesize=nodesize,
   )
 }
 
-r_SC_parts <- plapply(1:nruns, wrap_rf)
-r_SC <- do.call(randomForest::combine, r_SC_parts)
+rf_parts <- plapply(1:nruns, wrap_rf)
+rf <- do.call(randomForest::combine, rf_parts)
 #print(r_SC)
 
 ################################################################################
@@ -211,12 +209,12 @@ r_SC <- do.call(randomForest::combine, r_SC_parts)
 
 ### Random Forest ###
 
-p_SC <- predict(r_SC, test_SC)
-f_p_SC <- factor(p_SC, levels=min(response_test_SC):max(response_test_SC))
+p <- predict(rf, test)
+f_p <- factor(p, levels=min(response_test):max(response_test))
 
 # Evaluate quality of predictions
-cm1_SC <- confusionMatrix(f_p_SC, f_response_test_SC)
-print(cm1_SC)
+cm1 <- confusionMatrix(f_p, f_response_test)
+print(cm1)
 
 
 ################################################################################
