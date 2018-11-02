@@ -1,4 +1,5 @@
 require(hash)
+require(plyr)
 
 substrRight <- function(x, n){
   substr(x, nchar(x)-n+1, nchar(x))
@@ -94,7 +95,7 @@ joinPaths <- function(...) {
 }
 
 # Return a list of individual row dataframes
-splitDataframe <- function(df) {
+splitDataFrame <- function(df) {
   res <- list()
   len <- nrow(df)
   if(len==0) {return(res)}
@@ -160,4 +161,13 @@ stochasticSelection <- function(x, size) {
   sampled <- sample(x, toIntegerStochastic(size), replace=FALSE)
   selected <- append(selected, sampled)
   return(selected)
+}
+
+peek <- function(df, x=5, y=5) {
+  df[1:x, 1:y]
+}
+
+bind_rows_forgiving <- function(dfs) {
+  # TODO: better solution for variable data structure
+  rbind.fill(dfs)
 }

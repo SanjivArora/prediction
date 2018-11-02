@@ -72,7 +72,7 @@ dataframes_for_models <- function(date, models, days=default_days, sources=defau
       res[[i]] <- append(res[[i]], list(m_data[[i]]))
     }
   }
-  res <- map(res, bind_rows)
+  res <- map(res, bind_rows_forgiving)
   # TODO: make unique by serial (take first), warn about duplicate serials
   # Reset row names
   res <- plapply(res, function (dt) {

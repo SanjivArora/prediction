@@ -10,7 +10,7 @@ plapply <- function(l, f, parallel=TRUE) {
     results <- mclapply(l, f, mc.cores=ncores, mc.cleanup=TRUE)
     have_errors <- filterBy(results, function(r) attributes(r)$class=="try-error")
     if(length(have_errors) > 0) {
-      parallel_log$warn(paste(length(have_errors), "children have exceptions, rethrowing first exception"))
+      parallel_log$warn(paste(length(have_errors), "exceptions from child processes, rethrowing first exception"))
       e <- attributes(have_errors[[1]])$condition
       stop(e)
     }

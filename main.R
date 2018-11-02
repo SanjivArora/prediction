@@ -39,10 +39,12 @@ library(profvis)
 #profvis({
  
 # Number of days of predictor data files to use for training
-data_days = 7 # 31
+data_days = 1000 # 31
+
+total_samples <- 10000
 
 # Maximum number of days to predict SC code
-sc_code_days = 1
+sc_code_days = 14
 
 
 regions = c(
@@ -89,6 +91,11 @@ test_date = lubridate::as_date('20180730')
 #test_control_size_multiple = 1
 test_control_size_multiple = NULL
 
+# Total samples for SC code instances
+positive_samples <- total_samples / 2
+# Total sample for control instances
+control_samples <- total_samples / 2
+
 ################################################################################
 # Get Dates
 ################################################################################
@@ -117,35 +124,33 @@ fs <- append(
 # SC Codes
 ################################################################################
 
-codes <- codesForRegionsAndModels(regions, models)
+parallel=TRUE
+
+codes <- codesForRegionsAndModels(regions, models, parallel)
 
 ################################################################################
 # Sample dataset
 ################################################################################
 
-
-# Set Seed so that same sample can be reproduced in future
-set.seed(101) 
-
 data_files <- instancesForDir()
 
 # Restrict data set for debugging
 file_sets <- getDailyFileSets(data_files, sources)
-data_files <- unlist(file_sets[1:3])
-
+data_files <- unlist(file_sets[1:data_days])
 
 require(profvis)
 #profvis({
+
 counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, parallel=parallel)
 print(counts$getCounts())
-counts$setTargetSC(100)
-counts$setTargetControl(100)
-predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_days, parallel=TRUE)
+counts$setTargetSC(positive_samples)
+counts$setTargetControl(control_samples)
+predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_days, parallel=parallel)
 #View(predictors[1:5,1:5])
 #})
 
-predictors <- predictors %>% mutate_if(sapply(predictors, is.factor), as.character)
-predictors <- replace_na(predictors)
+#predictors <- predictors %>% mutate_if(sapply(predictors, is.factor), as.character)
+
 
 ################################################################################
 # Train and test datasets
@@ -154,23 +159,54 @@ predictors <- replace_na(predictors)
 # If we aren't using a separate test dataset, split out train and test
 # Select 75% of data for training set, 25% for test set
 
+# Set Seed so that same sample can be reproduced in future
+set.seed(101) 
+
+serial_to_codes <- counts$getSerialToCodes()
+
+date_field <- "GetDate"
+getMatchingCodesForRow <- function(row) {
+  getMatchingCodes(serial_to_codes[[row$Serial]], row[,date_field], counts$getSCDays())
+}
+
+# Pass in only required values for efficiency)
+matching_code_sets <- lapply(
+  splitDataFrame(predictors[,c("Serial", date_field)]),
+  getMatchingCodesForRow
+)
+
+responses <- lapply(matching_code_sets, function(x) length(x) > 1)
+responses <- as.data.frame(unlist(responses))
 
 sample_indices <- sample.int(n = nrow(predictors), size = floor(.75*nrow(predictors)), replace = F)
 train <- predictors[sample_indices, ]
 test <- predictors[-sample_indices, ]
+train_response_bool <- responses[sample_indices, ]
+test_response_bool <- responses[-sample_indices, ]
 
-
-response_train_bool <- train$Serial %in% keys(counts$getSerialToCodes())
-response_test_bool <- test$Serial %in% keys(counts$getSerialToCodes())
-
-response_train <- as.numeric(response_train_bool)
-response_test <- as.numeric(response_test_bool)
+train_response <- as.numeric(train_response_bool)
+test_response <- as.numeric(test_response_bool)
 
 factorise <- function(x) {
   factor(x, levels=min(x):max(x))
 }
-f_response_train <- factorise(response_train)
-f_response_test <- factorise(response_test)
+f_train_response <- factorise(train_response)
+f_test_response <- factorise(test_response)
+
+
+################################################################################
+# Restrict to valid numeric values
+################################################################################
+
+take_eligible <- function(dataset) {
+  res <- num_columns(dataset)
+  res <- replace_na(res)
+  return(res)
+}
+
+train <- take_eligible(train)
+test <- take_eligible(test)
+
 
 ################################################################################
 # Model
@@ -192,7 +228,7 @@ nruns=16
 wrap_rf <- function(null) {
   randomForest(
     train,
-    f_response_train,
+    f_train_response,
     ntree=ntree
     #mtry=mtry,
     #nodesize=nodesize,
@@ -203,6 +239,7 @@ rf_parts <- plapply(1:nruns, wrap_rf)
 rf <- do.call(randomForest::combine, rf_parts)
 #print(r_SC)
 
+
 ################################################################################
 # SC Predict
 ################################################################################
@@ -210,10 +247,10 @@ rf <- do.call(randomForest::combine, rf_parts)
 ### Random Forest ###
 
 p <- predict(rf, test)
-f_p <- factor(p, levels=min(response_test):max(response_test))
+#f_p <- factorise(p)
 
 # Evaluate quality of predictions
-cm1 <- confusionMatrix(f_p, f_response_test)
+cm1 <- confusionMatrix(p, f_test_response)
 print(cm1)
 
 

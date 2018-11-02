@@ -34,7 +34,7 @@ getDailyFileSets <- function(data_files, required_sources) {
 
 getMatchingCodes <- function(codes, date, sc_days) {
   if(class(codes) == "data.frame") {
-    codes <- splitDataframe(codes)
+    codes <- splitDataFrame(codes)
   }
   res <- filterBy(codes, function(c) {
     delta <- c$OCCUR_DATE - date
@@ -74,7 +74,7 @@ InstanceCounter <- setRefClass(
       callSuper(...)
       .self$sc_days <- sc_days
       .self$min_count <- min_count
-      code_list <- splitDataframe(.self$codes)
+      code_list <- splitDataFrame(.self$codes)
       .self$serial_to_codes <- groupBy(code_list, function (c) c$Serial)
       .self$counts <- hash()
       .self$counts[["0"]] <- 0
@@ -86,6 +86,7 @@ InstanceCounter <- setRefClass(
     processDay = function(day_data, date) {
       sampling_log$debug(paste("Getting counts for", date))
       serials <- day_data$Serial
+      # TODO: Would be marginally better to use per-row GetDate rather than data file date
       for(serial in serials) {
         cs <- getWithDefault(.self$serial_to_codes, serial, list())
         hits <- getMatchingCodes(cs, date, .self$sc_days)
@@ -144,7 +145,8 @@ InstanceCounter <- setRefClass(
     # Merge count hash (for parallelization)
     mergeCounts = function(count_hash) {
       .self$counts <- addHash(.self$counts, count_hash)
-    }
+    },
+    getSCDays = function() {.self$sc_days}
   )
 )
 
@@ -155,7 +157,7 @@ visitPredictorDataframes <- function(data_files, required_sources, f, parallel=F
   visit <- function(file_sets) {
     date <- file_sets[[1]][[1]]$date
     parts <- plapply(file_sets, function(fs) dataFilesToDataframe(fs))
-    df <- bind_rows(parts)
+    df <- bind_rows_forgiving(parts)
     # Set row names to Serial
     row.names(df) <- unlist(df[,'Serial'])
     res <- f(df, date)
@@ -239,6 +241,6 @@ dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, s
     function(df, date) sampleDataFrame(df, date, counts),
     parallel=parallel
   )
-  res <- bind_rows(parts)
+  res <- bind_rows_forgiving(parts)
   return(res)
 }

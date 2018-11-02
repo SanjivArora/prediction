@@ -37,7 +37,7 @@ source('lib/DataFile.R')
 
           parts <- append(parts, list(x))
         }
-        res <- bind_rows(parts)
+        res <- bind_rows_forgiving(parts)
         return(res)
       }
       # TODO: method to extract lifetime counts
@@ -48,15 +48,15 @@ source('lib/DataFile.R')
 # d <- SCFile(path="RNZ_E16_SC_20180714.csv")
 # x <- d$getDataFrame()
   
-codesFor <- function(f) {
+codesFor <- function(f, parallel=TRUE) {
   datafiles <- instancesForDir(cls=SCFile)
   datafiles <- filterBy(datafiles, f)
-  dfs <- plapply(datafiles, function (x) x$getDataFrame())
-  res <- distinct(bind_rows(dfs))
+  dfs <- plapply(datafiles, function (x) x$getDataFrame(), parallel=parallel)
+  res <- distinct(bind_rows_forgiving(dfs))
   return(res)
 }
 
-codesForRegionsAndModels <- function(regions, models) {
-  res <- codesFor(function(f) f$model %in% models && f$region %in% regions && f$source=='SC')
+codesForRegionsAndModels <- function(regions, models, parallel=TRUE) {
+  res <- codesFor(function(f) f$model %in% models && f$region %in% regions && f$source=='SC', parallel=parallel)
   return(res)
 }
