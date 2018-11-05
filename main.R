@@ -9,7 +9,7 @@ require(parallel)
 
 
 #plapply <- lapply
-                   
+
 # MemoiseCache must be loaded first
 debugSource("lib/Parallel.R")
 debugSource("lib/Util.R")
@@ -28,6 +28,7 @@ debugSource("lib/SCFile.R")
 debugSource("lib/Sampling.R")
 debugSource("lib/Logging.R")
 debugSource("lib/DataFile.R")
+debugSource("lib/Results.R")
 
 
 #sources=c('Count', 'PMCount', 'Jam')
@@ -37,11 +38,12 @@ sources=c('PMCount', 'Count')
 
 library(profvis)
 #profvis({
- 
+
 # Number of days of predictor data files to use for training
 data_days = 1000 # 31
 
-total_samples <- 10000
+# Target samples (will pick up extra samples where there are multiple applicable codes)
+total_samples <- 1000
 
 # Maximum number of days to predict SC code
 sc_code_days = 14
@@ -72,29 +74,27 @@ daily_features = c(
 nocache = FALSE
 
 
-use_separate_test_dataset = TRUE
-
-#test_date = get_latest_date(models)
-test_date = lubridate::as_date('20180730')
-
-# if(use_separate_test_dataset) {
-#   # Allow a gap of test_data_days
-#   train_date = test_date - 2*test_data_days
-# } else {
-#   train_data = test_date
-# }
-# 
-# if(test_date < train_date + test_data_days) {
-#   stop("Test date must be at least data_days after train_date")
-# }
-
-#test_control_size_multiple = 1
-test_control_size_multiple = NULL
 
 # Total samples for SC code instances
 positive_samples <- total_samples / 2
 # Total sample for control instances
 control_samples <- total_samples / 2
+
+
+target_codes <- list(
+  200:299, #C01 NOT FUNCTION AT ALL
+  600:699, #C01 NOT FUNCTION AT ALL
+  800:899, #C01 NOT FUNCTION AT ALL
+  900:999 #C01 NOT FUNCTION AT ALL  
+)
+# Exclude 899
+target_codes <- target_codes[target_codes != 899]
+
+target_codes <- Reduce(append, target_codes)
+target_code_hash <- hash()
+for(c in target_codes) {
+  target_code_hash[[as.character(c)]] <- TRUE
+}
 
 ################################################################################
 # Get Dates
@@ -115,7 +115,7 @@ fs <- append(
   read_features(features),
   read_daily_features(daily_features)
 )
- 
+
 # TODO: Investigate apparent effect of feature order on RandomTree implementation
 #fs<-sample(fs)
 
@@ -126,7 +126,10 @@ fs <- append(
 
 parallel=TRUE
 
-codes <- codesForRegionsAndModels(regions, models, parallel)
+
+codes_all <- codesForRegionsAndModels(regions, models, parallel)
+code_indices <- plapply(splitDataFrame(codes_all), function(c) has.key(c$SC_CD, target_code_hash))
+codes <- codes_all[unlist(code_indices),]
 
 ################################################################################
 # Sample dataset
@@ -175,14 +178,49 @@ matching_code_sets <- lapply(
   getMatchingCodesForRow
 )
 
+# Summarize code counts for final sampling
+final_codes <- lapply(unlist(matching_code_sets, recursive=FALSE), function(x) x$SC_CD)
+final_counts <- sort(table(unlist(final_codes)), decreasing=TRUE)
+print(paste(nrow(predictors), "total samples"))
+print("Sample counts for SC codes:")
+print(final_counts)
+
 responses <- lapply(matching_code_sets, function(x) length(x) > 1)
 responses <- as.data.frame(unlist(responses))
 
-sample_indices <- sample.int(n = nrow(predictors), size = floor(.75*nrow(predictors)), replace = F)
-train <- predictors[sample_indices, ]
-test <- predictors[-sample_indices, ]
+default_frac <- .75 
+# For reference, will encourage memorizing cases
+randomSplit <- function(predictors, frac=default_frac) {
+  indices <- runif(length(predictors)) <= frac
+  return(indices)
+}
+
+# Approximate split of samples by serial
+serialSplit <- function(predictors, frac=default_frac) {
+  all_serials <- unique(predictors$Serial)
+  serials <- sample(all_serials, size = floor(frac*length(all_serials)), replace = F)
+  indices <- predictors$Serial %in% serials
+  return(indices)
+}
+
+# Approximate split of samples by time, oldest first
+timeSplit <- function(predictors, frac=default_frac) {
+    newest <- top_n(predictors, floor(frac*nrow(predictors)))
+    indices <- !(row.names(predictors) %in% row.names(newest))
+    return(indices)
+}
+
+# TODO: subsets with unique serials and non-overlapping time ranges (necessarily discards some of the data)
+
+
+#sample_indices <- serialSplit(predictors)
+sample_indices <- timeSplit(predictors)
+#sample_indices <- randomSplit(predictors)
+
+train_raw <- predictors[sample_indices, ]
+test_raw <- predictors[!sample_indices, ]
 train_response_bool <- responses[sample_indices, ]
-test_response_bool <- responses[-sample_indices, ]
+test_response_bool <- responses[!sample_indices, ]
 
 train_response <- as.numeric(train_response_bool)
 test_response <- as.numeric(test_response_bool)
@@ -204,8 +242,8 @@ take_eligible <- function(dataset) {
   return(res)
 }
 
-train <- take_eligible(train)
-test <- take_eligible(test)
+train <- take_eligible(train_raw)
+test <- take_eligible(test_raw)
 
 
 ################################################################################
@@ -224,7 +262,7 @@ nodesize = 5
 ntree=100
 nruns=16
 
-
+#z<-bind_cols(as.data.frame(f_train_response), as.data.frame(f_train_response))
 wrap_rf <- function(null) {
   randomForest(
     train,
@@ -246,14 +284,26 @@ rf <- do.call(randomForest::combine, rf_parts)
 
 ### Random Forest ###
 
-p <- predict(rf, test)
+p_train <- predict(rf, train)
+p_test <- predict(rf, test)
 #f_p <- factorise(p)
 
-# Evaluate quality of predictions
-cm1 <- confusionMatrix(p, f_test_response)
-print(cm1)
+evaluate <- function(p, f_response) {
+  # Evaluate quality of predictions
+  results <- Results(
+    prediction=p,
+    labels=f_response
+  )
+  print(results$getConfusionMatrix())
+  results$printSummary()
+}
 
+print("Evaluation on training set:")
+evaluate(p_train, f_train_response)
+print("Evaluation on test set:")
+evaluate(p_test, f_test_response)
 
+plotROC(rf, test, f_test_response)
 ################################################################################
 # Feature Selection
 ################################################################################

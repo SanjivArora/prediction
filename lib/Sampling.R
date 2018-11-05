@@ -90,9 +90,10 @@ InstanceCounter <- setRefClass(
       for(serial in serials) {
         cs <- getWithDefault(.self$serial_to_codes, serial, list())
         hits <- getMatchingCodes(cs, date, .self$sc_days)
-        for(c in hits) {
-          count <- getWithDefault(.self$counts, c$SC_CD, 0)
-          .self$counts[[c$SC_CD]] <- count+1
+        hit_codes <- unique(lapply(hits, function(c) c$SC_CD))
+        for(c in hit_codes) {
+          count <- getWithDefault(.self$counts, c, 0)
+          .self$counts[[c]] <- count+1
         }
         # If no hits, add to count for control cases
         if(length(hits) == 0) {
@@ -213,9 +214,10 @@ sampleDataFrame <- function(df, date, counts) {
   for(serial in df$Serial) {
     cs <- getWithDefault(serial_to_codes, serial, list())
     hits <- getMatchingCodes(cs, date, counts$sc_days)
-    for (hit in hits) {
-      current <- getWithDefault(code_to_serials, hit$SC_CD, list())
-      code_to_serials[[hit$SC_CD]] <- append(current, serial)
+    hit_codes <- unique(lapply(hits, function(c) c$SC_CD))
+    for (c in hit_codes) {
+      current <- getWithDefault(code_to_serials, c, list())
+      code_to_serials[[c]] <- append(current, serial)
     }
     # If no hits, add to control cases
     if(length(hits) == 0) {
