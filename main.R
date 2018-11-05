@@ -5,7 +5,8 @@ require(dplyr)
 require(memoise)
 require(doParallel)
 require(parallel)
-
+require(mlr)
+require(itertools)
 
 
 #plapply <- lapply
@@ -179,14 +180,29 @@ matching_code_sets <- lapply(
 )
 
 # Summarize code counts for final sampling
-final_codes <- lapply(unlist(matching_code_sets, recursive=FALSE), function(x) x$SC_CD)
+matching_code_sets_unique <- lapply(matching_code_sets, function(cs) uniqueBy(cs, function(c) c$SC_CD))
+final_codes <- lapply(unlist(matching_code_sets_unique, recursive=FALSE), function(x) x$SC_CD)
 final_counts <- sort(table(unlist(final_codes)), decreasing=TRUE)
 print(paste(nrow(predictors), "total samples"))
 print("Sample counts for SC codes:")
 print(final_counts)
 
-responses <- lapply(matching_code_sets, function(x) length(x) > 1)
-responses <- as.data.frame(unlist(responses))
+# Get labels for codes that meet the required threshold for instances
+used_labels <- keys(counts$getCounts())
+used_labels <- used_code_names[used_code_names!="0"]
+
+
+i<-1
+responses <- data.frame()
+for(codes in matching_code_sets_unique) {
+  cs <- lapply(codes, function(c) c$SC_CD)
+  part <- used_labels %in% cs
+  for(j in 1:length(used_labels)) {
+    responses[i, used_labels[[j]]] <- part[[j]]
+  }
+  i <- i+1
+}
+
 
 default_frac <- .75 
 # For reference, will encourage memorizing cases
@@ -204,7 +220,7 @@ serialSplit <- function(predictors, frac=default_frac) {
 }
 
 # Approximate split of samples by time, oldest first
-timeSplit <- function(predictors, frac=default_frac) {
+timeSplit <- function(predictors, frac=default_frac, getDate {
     newest <- top_n(predictors, floor(frac*nrow(predictors)))
     indices <- !(row.names(predictors) %in% row.names(newest))
     return(indices)
@@ -219,17 +235,17 @@ sample_indices <- timeSplit(predictors)
 
 train_raw <- predictors[sample_indices, ]
 test_raw <- predictors[!sample_indices, ]
-train_response_bool <- responses[sample_indices, ]
-test_response_bool <- responses[!sample_indices, ]
-
-train_response <- as.numeric(train_response_bool)
-test_response <- as.numeric(test_response_bool)
-
-factorise <- function(x) {
-  factor(x, levels=min(x):max(x))
-}
-f_train_response <- factorise(train_response)
-f_test_response <- factorise(test_response)
+train_responses <- responses[sample_indices, ]
+test_responses <- responses[!sample_indices, ]
+# 
+# train_response <- as.numeric(train_response_bool)
+# test_response <- as.numeric(test_response_bool)
+# 
+# factorise <- function(x) {
+#   factor(x, levels=min(x):max(x))
+# }
+# f_train_response <- factorise(train_response)
+# f_test_response <- factorise(test_response)
 
 
 ################################################################################
@@ -242,8 +258,9 @@ take_eligible <- function(dataset) {
   return(res)
 }
 
-train <- take_eligible(train_raw)
-test <- take_eligible(test_raw)
+predictors_eligible <- take_eligible(predictors)
+# train <- take_eligible(train_raw)
+# test <- take_eligible(test_raw)
 
 
 ################################################################################
@@ -254,28 +271,52 @@ require(randomForest)
 require(caret)
 require(e1071)
 
+# 
+# mtry = 100
+# nodesize = 5
+# # Default is 500
+# #ntree=500
+# ntree=100
+# nruns=16
+# 
+# #z<-bind_cols(as.data.frame(f_train_response), as.data.frame(f_train_response))
+# wrap_rf <- function(null) {
+#   randomForest(
+#     train,
+#     f_train_response,
+#     ntree=ntree
+#     #mtry=mtry,
+#     #nodesize=nodesize,
+#   )
+# }
+# 
+# rf_parts <- plapply(1:nruns, wrap_rf)
+# rf <- do.call(randomForest::combine, rf_parts)
+# #print(r_SC)
 
-mtry = 100
-nodesize = 5
-# Default is 500
-#ntree=500
-ntree=100
-nruns=16
 
-#z<-bind_cols(as.data.frame(f_train_response), as.data.frame(f_train_response))
-wrap_rf <- function(null) {
-  randomForest(
-    train,
-    f_train_response,
-    ntree=ntree
-    #mtry=mtry,
-    #nodesize=nodesize,
-  )
-}
+require(mlr)
 
-rf_parts <- plapply(1:nruns, wrap_rf)
-rf <- do.call(randomForest::combine, rf_parts)
-#print(r_SC)
+
+data <- bind_cols(predictors_eligible, responses)
+colnames(data) <- make.names(colnames(data))
+
+train_data <- data[sample_indices,]
+test_data <- data[!sample_indices,]
+
+train_task <- makeMultilabelTask(data = train_data, target = unlist(make.names(used_labels)))
+test_task <- makeMultilabelTask(data = test_data, target = unlist(make.names(used_labels)))
+
+#lrn <- makeLearner("classif.rpart")
+lrn <- makeLearner("classif.randomForest")
+lrn <- makeMultilabelBinaryRelevanceWrapper(lrn)
+lrn <- setPredictType(lrn, "prob")
+
+mod <- train(lrn, train_task)
+pred <- predict(mod, test_task)
+
+performance(pred, measure <- list(multilabel.hamloss, multilabel.subset01, multilabel.f1))
+getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
 
 
 ################################################################################
@@ -284,26 +325,26 @@ rf <- do.call(randomForest::combine, rf_parts)
 
 ### Random Forest ###
 
-p_train <- predict(rf, train)
-p_test <- predict(rf, test)
-#f_p <- factorise(p)
-
-evaluate <- function(p, f_response) {
-  # Evaluate quality of predictions
-  results <- Results(
-    prediction=p,
-    labels=f_response
-  )
-  print(results$getConfusionMatrix())
-  results$printSummary()
-}
-
-print("Evaluation on training set:")
-evaluate(p_train, f_train_response)
-print("Evaluation on test set:")
-evaluate(p_test, f_test_response)
-
-plotROC(rf, test, f_test_response)
+# p_train <- predict(rf, train)
+# p_test <- predict(rf, test)
+# #f_p <- factorise(p)
+# 
+# evaluate <- function(p, f_response) {
+#   # Evaluate quality of predictions
+#   results <- Results(
+#     prediction=p,
+#     labels=f_response
+#   )
+#   print(results$getConfusionMatrix())
+#   results$printSummary()
+# }
+# 
+# print("Evaluation on training set:")
+# evaluate(p_train, f_train_response)
+# print("Evaluation on test set:")
+# evaluate(p_test, f_test_response)
+# 
+# plotROC(rf, test, f_test_response)
 ################################################################################
 # Feature Selection
 ################################################################################

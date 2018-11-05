@@ -37,7 +37,7 @@ source('lib/DataFile.R')
 
           parts <- append(parts, list(x))
         }
-        res <- bind_rows_forgiving(parts)
+        res <- bindRowsForgiving(parts)
         return(res)
       }
       # TODO: method to extract lifetime counts
@@ -52,7 +52,7 @@ codesFor <- function(f, parallel=TRUE) {
   datafiles <- instancesForDir(cls=SCFile)
   datafiles <- filterBy(datafiles, f)
   dfs <- plapply(datafiles, function (x) x$getDataFrame(), parallel=parallel)
-  res <- distinct(bind_rows_forgiving(dfs))
+  res <- distinct(bindRowsForgiving(dfs))
   return(res)
 }
 

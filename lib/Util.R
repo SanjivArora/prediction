@@ -167,7 +167,16 @@ peek <- function(df, x=5, y=5) {
   df[1:x, 1:y]
 }
 
-bind_rows_forgiving <- function(dfs) {
+bindRowsForgiving <- function(dfs) {
   # TODO: better solution for variable data structure
   rbind.fill(dfs)
+}
+
+# Take values from xs such that each value of f(x) is unique. Order of selection is undefined, and f(x) must be able to be cast to a string.
+uniqueBy <- function(xs, f) {
+  h <- hash()
+  for(x in xs) {
+    h[[as.character(f(x))]] <- x
+  }
+  return(values(h, simplify=FALSE))
 }

@@ -158,7 +158,7 @@ visitPredictorDataframes <- function(data_files, required_sources, f, parallel=F
   visit <- function(file_sets) {
     date <- file_sets[[1]][[1]]$date
     parts <- plapply(file_sets, function(fs) dataFilesToDataframe(fs))
-    df <- bind_rows_forgiving(parts)
+    df <- bindRowsForgiving(parts)
     # Set row names to Serial
     row.names(df) <- unlist(df[,'Serial'])
     res <- f(df, date)
@@ -243,6 +243,6 @@ dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, s
     function(df, date) sampleDataFrame(df, date, counts),
     parallel=parallel
   )
-  res <- bind_rows_forgiving(parts)
+  res <- bindRowsForgiving(parts)
   return(res)
 }
