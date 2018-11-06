@@ -189,7 +189,7 @@ print(final_counts)
 
 # Get labels for codes that meet the required threshold for instances
 used_labels <- keys(counts$getCounts())
-used_labels <- used_code_names[used_code_names!="0"]
+used_labels <- used_labels[used_labels!="0"]
 
 
 i<-1
@@ -220,7 +220,7 @@ serialSplit <- function(predictors, frac=default_frac) {
 }
 
 # Approximate split of samples by time, oldest first
-timeSplit <- function(predictors, frac=default_frac, getDate {
+timeSplit <- function(predictors, frac=default_frac) {
     newest <- top_n(predictors, floor(frac*nrow(predictors)))
     indices <- !(row.names(predictors) %in% row.names(newest))
     return(indices)
@@ -267,9 +267,9 @@ predictors_eligible <- take_eligible(predictors)
 # Model
 ################################################################################
 
-require(randomForest)
-require(caret)
-require(e1071)
+#require(randomForest)
+#require(caret)
+#require(e1071)
 
 # 
 # mtry = 100
@@ -312,8 +312,8 @@ lrn <- makeLearner("classif.randomForest")
 lrn <- makeMultilabelBinaryRelevanceWrapper(lrn)
 lrn <- setPredictType(lrn, "prob")
 
-mod <- train(lrn, train_task)
-pred <- predict(mod, test_task)
+mod <- mlr::train(lrn, train_task)
+pred <- mlr::predict(mod, test_task)
 
 performance(pred, measure <- list(multilabel.hamloss, multilabel.subset01, multilabel.f1))
 getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
