@@ -34,9 +34,11 @@ getDailyFileSets <- function(data_files, required_sources) {
 
 getMatchingCodes <- function(codes, date, sc_days) {
   if(class(codes) == "data.frame") {
-    codes <- splitDataFrame(codes)
+    cs <- splitDataFrame(codes)
+  } else {
+    cs <- codes
   }
-  res <- filterBy(codes, function(c) {
+  res <- filterBy(cs, function(c) {
     delta <- c$OCCUR_DATE - date
     in_window <- delta >= 0 && delta <= sc_days
     return(in_window)
@@ -65,9 +67,7 @@ InstanceCounter <- setRefClass(
     # Hash mapping code number to count. "0" is a special key for control case instances (i.e. no SC codes).
     counts = "hash",
     # Total number of predictor rows
-    #n_total = "numeric",
-    # Number of predictor rows with no counts
-    n_negative = "numeric"
+    n_total = "numeric"
   ),
   methods = list(
     initialize = function(..., sc_days=14, min_count=10, n_target_sc=1000, n_target_control=1000) {
@@ -78,7 +78,7 @@ InstanceCounter <- setRefClass(
       .self$serial_to_codes <- groupBy(code_list, function (c) c$Serial)
       .self$counts <- hash()
       .self$counts[["0"]] <- 0
-      #.self$n_total <- 0
+      .self$n_total <- 0
       .self$n_target_sc <- n_target_sc
       .self$n_target_control <- n_target_control
     },
@@ -88,7 +88,7 @@ InstanceCounter <- setRefClass(
       serials <- day_data$Serial
       # TODO: Would be marginally better to use per-row GetDate rather than data file date
       for(serial in serials) {
-        cs <- getWithDefault(.self$serial_to_codes, serial, list())
+        cs <- getWithDefault(.self$getSerialToCodes(), serial, list())
         hits <- getMatchingCodes(cs, date, .self$sc_days)
         hit_codes <- unique(lapply(hits, function(c) c$SC_CD))
         for(c in hit_codes) {
@@ -100,7 +100,7 @@ InstanceCounter <- setRefClass(
           count <- getWithDefault(.self$counts, "0", 0)
           .self$counts[["0"]] <- count+1
         }
-        #.self$n_total <- .self$n_total + 1
+        .self$n_total <- .self$n_total + 1
       }
     },
     getCounts = function() {
@@ -109,7 +109,7 @@ InstanceCounter <- setRefClass(
     getRawCounts = function() {
       .self$counts
     },
-    #getTotal = function() .self$n_total,
+    getTotal = function() .self$n_total,
     getNegative = function() .self$negative,
     setMinCount = function(x) .self$min_count <- x,
     # Get sampling frequencies for SC codes sucht that we have approximately equal representation for each code.
@@ -143,9 +143,10 @@ InstanceCounter <- setRefClass(
     setTargetControl = function(x) {
       .self$n_target_control <- x
     },
-    # Merge count hash (for parallelization)
-    mergeCounts = function(count_hash) {
-      .self$counts <- addHash(.self$counts, count_hash)
+    # Merge another counter instance (for parallelization)
+    mergeCounts = function(other) {
+      .self$counts <- addHash(.self$counts, other$counts)
+      .self$n_total <- .self$n_total + other$n_total
     },
     getSCDays = function() {.self$sc_days}
   )
@@ -157,34 +158,36 @@ visitPredictorDataframes <- function(data_files, required_sources, f, parallel=F
   sampling_log$debug(paste("Visiting", length(daily_file_sets), "daily data frames"))
   visit <- function(file_sets) {
     date <- file_sets[[1]][[1]]$date
-    parts <- plapply(file_sets, function(fs) dataFilesToDataframe(fs))
+    parts <- plapply(file_sets, function(fs) dataFilesToDataframe(fs), parallel=parallel)
     df <- bindRowsForgiving(parts)
     # Set row names to Serial
     row.names(df) <- unlist(df[,'Serial'])
     res <- f(df, date)
     return(res)
   }
-  res <- plapply(daily_file_sets, visit, parallel)
+  res <- plapply(daily_file_sets, visit, parallel=parallel)
+  stopifnot(length(daily_file_sets)==length(res))
   return(res)
 }
 
-dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=14, parallel=TRUE) {
-  counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days)
+dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=14, min_count=10, parallel=TRUE) {
+  counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count)
   # Dirty trick for efficient parallelization - if executing in parallel, update the counter with count hashes from children.
   # Since the counter environment in this process will not be updated in parallel execution, this works.
   # If we are executing serially, the counter will automatically update.
-  count_hashes <- visitPredictorDataframes(
+  counters <- visitPredictorDataframes(
     data_files,
     required_sources,
     function(df, date) {
+      counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count)
       counter$processDay(df, date)
-      return(counter$getCounts())
+      return(counter)
     },
     parallel=parallel
   )
   if(parallel) {
-    for(cs in count_hashes) {
-      counter$mergeCounts(cs)
+    for(c in counters) {
+      counter$mergeCounts(c)
     }
   }
   dropped_counts <- subtractHash(counter$getRawCounts(), counter$getCounts())
@@ -232,7 +235,9 @@ sampleDataFrame <- function(df, date, counts) {
     sampled <- stochasticSelection(serials, n)
     sampled_serials <- append(sampled_serials, sampled)
   }
+  n <- length(sampled_serials)
   res <- df[unlist(sampled_serials),]
+  stopifnot(nrow(res)==n)
   return(res)
 }
 
@@ -243,6 +248,11 @@ dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, s
     function(df, date) sampleDataFrame(df, date, counts),
     parallel=parallel
   )
+  total_rows_parts <- sum(unlist(lapply(parts, nrow)))
   res <- bindRowsForgiving(parts)
+  total_rows <- nrow(res)
+  if(total_rows != total_rows_parts) {
+    print(paste("Dropped", total_rows - total_rows_parts, "rows when combining daily dataframes"))
+  }
   return(res)
 }

@@ -40,7 +40,7 @@ num_columns <- function(data){
 
 replace_na<-function(data){
   temp <- as.data.frame(data)
-  temp[is.na(data)]<-0
+  temp[is.na(temp)]<-0
   return(temp)
 }
 

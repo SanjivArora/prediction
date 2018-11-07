@@ -143,7 +143,7 @@ subtractHash <- function(h1, h2) {
 # Convert value to integer, maintaining average value. I.e. taking the mean of repeated applications of this function to x will converge to x.
 toIntegerStochastic <- function(x) {
   integral_portion <- floor(x)
-  if(runif(1) > x - integral_portion) {
+  if(runif(1) < x - integral_portion) {
     return(integral_portion + 1)
   } else {
     return(integral_portion)
@@ -161,6 +161,16 @@ stochasticSelection <- function(x, size) {
   sampled <- sample(x, toIntegerStochastic(size), replace=FALSE)
   selected <- append(selected, sampled)
   return(selected)
+}
+
+testStochasticSelection <- function(target_frac=1.2) {
+  l <- 1:3
+  l1 <- list()
+  n <- 10000
+  for(x in 1:n) {
+    l1 <- append(l1, stochasticSelection(l, target_frac))
+  }
+  print(paste("Approximate target: ", n*target_frac, ", Actual: ", length(l1)))
 }
 
 peek <- function(df, x=5, y=5) {
