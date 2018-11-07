@@ -1,6 +1,3 @@
-# TODO: for printers with relevant hist codes, generate mean for deltas 2-8 days before failure (one week of data). For printers without failures select random 7 day period from the window under examination.
-
-
 require(dplyr)
 require(memoise)
 require(doParallel)
@@ -10,19 +7,13 @@ require(itertools)
 require(forcats)
 
 
-#plapply <- lapply
-
 # MemoiseCache must be loaded first
 debugSource("lib/Parallel.R")
 debugSource("lib/Util.R")
 debugSource("lib/Dates.R")
 debugSource("lib/MemoiseCache.R")
-debugSource("lib/ReadData.R")
-debugSource("lib/Dataset.R")
 debugSource("lib/Visualization.R")
 debugSource("lib/Feature.R")
-debugSource("lib/Processing.R")
-debugSource("lib/DatasetProcessing.R")
 debugSource("lib/FeatureSelection.R")
 debugSource("lib/FeatureNames.R")
 debugSource("lib/Feature.R")
@@ -77,10 +68,6 @@ daily_features = c(
 )
 
 
-nocache = FALSE
-
-
-
 # Total samples for SC code instances
 positive_samples <- total_samples / 2
 # Total sample for control instances
@@ -102,16 +89,6 @@ target_code_hash <- hash()
 for(c in target_codes) {
   target_code_hash[[as.character(c)]] <- TRUE
 }
-
-################################################################################
-# Get Dates
-################################################################################
-
-#files <- files_for_models(train_date, models, days=data_days, sources=sources)
-#dates <- lapply(unlist(files), get_date)
-#oldest_data <- min_date(dates)
-#oldest_delta <- oldest_data + lubridate::days(1)
-#latest_delta <- max_date(dates)
 
 
 ################################################################################
@@ -163,8 +140,6 @@ E#View(predictors[1:5,1:5])
 ################################################################################
 # Train and test datasets
 ################################################################################
-
-# If we aren't using a separate test dataset, split out train and test
 # Select 75% of data for training set, 25% for test set
 
 # Set Seed so that same sample can be reproduced in future
@@ -243,20 +218,17 @@ train_raw <- predictors[sample_vector, ]
 test_raw <- predictors[!sample_vector, ]
 train_responses <- responses[sample_vector, ]
 test_responses <- responses[!sample_vector, ]
-# 
-# train_response <- as.numeric(train_response_bool)
-# test_response <- as.numeric(test_response_bool)
-# 
-# factorise <- function(x) {
-#   factor(x, levels=min(x):max(x))
-# }
-# f_train_response <- factorise(train_response)
-# f_test_response <- factorise(test_response)
 
 
 ################################################################################
 # Restrict to valid numeric values
 ################################################################################
+
+replace_na<-function(data){
+  temp <- as.data.frame(data)
+  temp[is.na(temp)]<-0
+  return(temp)
+}
 
 take_eligible <- function(dataset, string_factors=TRUE) {
   res <- dataset
@@ -280,8 +252,6 @@ take_eligible <- function(dataset, string_factors=TRUE) {
 }
 
 predictors_eligible <- take_eligible(predictors, string_factors=FALSE)
-# train <- take_eligible(train_raw)
-# test <- take_eligible(test_raw)
 
 
 ################################################################################
@@ -300,8 +270,6 @@ test_data <- data[!sample_vector,]
 train_task <- makeMultilabelTask(data = train_data, target = unlist(make.names(used_labels)))
 test_task <- makeMultilabelTask(data = test_data, target = unlist(make.names(used_labels)))
 
-#lrn <- makeLearner("classif.rpart")
-#lrn <- makeLearner("classif.randomForest")
 lrn <- makeLearner("classif.ranger", par.vals=list(
   num.threads = ncores,
   num.trees = 1000
