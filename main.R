@@ -33,16 +33,21 @@ library(profvis)
 #profvis({
 
 # Number of days of predictor data files to use for training
-data_days = 1000
+data_days = 60
 
 # Target samples (will pick up extra samples where there are multiple applicable codes)
-total_samples <- 20000
+total_samples <- 5000
 
 # Maximum number of days to predict SC code
-sc_code_days = 14
+sc_code_days = 7
+#sc_code_days=2
 
 # Minimum number of sample-days to predict an SC code
 min_count=100
+
+# Offsets to use for generating deltas for numerical data
+delta_days = c(1, 3, 7)
+#delta_days = c(1, 2)
 
 
 regions = c(
@@ -54,8 +59,8 @@ models= c(
   'E15'
 )
 
+#parallel=TRUE
 parallel=TRUE
-#parallel=FALSE
 
 features = c(
   #'test5.txt'
@@ -135,7 +140,7 @@ counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, min_count
 print(counts$getCounts())
 counts$setTargetSC(positive_samples)
 counts$setTargetControl(control_samples)
-predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_days, parallel=parallel)
+predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_days, delta_days=delta_days, parallel=parallel)
 #View(predictors[1:5,1:5])
 #})
 
@@ -181,8 +186,8 @@ used_labels <- used_labels[used_labels!="0"]
 
 i<-1
 responses <- data.frame()
-for(codes in matching_code_sets_unique) {
-  cs <- lapply(codes, function(c) c$SC_CD)
+for(xs in matching_code_sets_unique) {
+  cs <- lapply(xs, function(c) c$SC_CD)
   part <- used_labels %in% cs
   for(j in 1:length(used_labels)) {
     responses[i, used_labels[[j]]] <- part[[j]]
@@ -222,8 +227,8 @@ split_fs <- hash(
 )
 
 #split_type <- "randomSplit"
-split_type <- "serialSplit"
-#split_type <- "timeSplit"
+#split_type <- "serialSplit"
+split_type <- "timeSplit"
 
 split_vector <- split_fs[[split_type]](predictors)
 

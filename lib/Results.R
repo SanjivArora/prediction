@@ -42,7 +42,6 @@ getExtraMultiLabelStats <- function(pred, labels, levels=c(0.50, 0.60, 0.70, 0.8
   res <- data.frame(matrix(ncol=length(col_names), nrow=1))
   colnames(res) <- col_names
   res[,1] <- as.character(res[,1])
-  #res[,2:length(col_names)] <- as.character(res[,2:length(col_names)])
   data <- pred$data
   for(label in labels) {
     r <- list(label)
@@ -59,5 +58,6 @@ getExtraMultiLabelStats <- function(pred, labels, levels=c(0.50, 0.60, 0.70, 0.8
   }
   res <- res[2:nrow(res),]
   row.names(res) <- res[,"label"]
+  res[,2:nrow(res)] <- lapply(extra_stats[,2:nrow(res)], as.numeric)
   return(res)
 }

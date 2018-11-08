@@ -15,7 +15,7 @@ valuesIfHash <- function(x) {
   }
 }
 
-# Take a list/vector of objects and a function mapping objects to keys, return a list of objects grouped by string representation of key
+# Take a list/vector of objects and a function mapping objects to keys, return a hash of objects grouped by string representation of key
 groupBy <- function(xs, f) {
   xs <- valuesIfHash(xs)
   h <- hash()
@@ -48,7 +48,7 @@ isTrue <- function(x) {
   !is_empty(x) && isTRUE(x)
 }
 
-# Filter list/vector/hash argument to values that are true where f(value) is true per isTrue
+# Filter list/vector/hash argument to values that are true where f(value) is true according to isTrue
 filterBy <- function(xs, f) {
   if (is.hash(xs)) {
     filterX <- filterHashByValue

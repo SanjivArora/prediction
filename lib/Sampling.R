@@ -25,12 +25,18 @@ getFileSets <- function(data_files, required_sources) {
 #getFileSets(fs, c("Count", "PMCount"))
 
 # Return list containing valid sets of data files for each day (i.e. top level lest containing a list per day with data, these lists contain sets of DataFile objects grouped by {region, model}). Top level list is sorted by date.
-getDailyFileSets <- function(data_files, required_sources) {
-  file_sets <- getFileSets(data_files, required_sources)
-  h <- groupBy(file_sets, function (fs) fs[[1]]$date)
+getDailyFileSets <- function(...) {
+  h <- getDailyFileSetsHash(...)
   res <- sortBy(h, function (fs) fs[[1]][[1]]$date)
   return(res)
 }
+
+getDailyFileSetsHash <- function(data_files, required_sources) {
+  file_sets <- getFileSets(data_files, required_sources)
+  h <- groupBy(file_sets, function (fs) fs[[1]]$date)
+  return(h)
+}
+
 
 getMatchingCodes <- function(codes, date, sc_days) {
   if(class(codes) == "data.frame") {
@@ -164,21 +170,27 @@ InstanceCounter <- setRefClass(
   )
 )
 
-# Call function for each day with valid data, pass a dataframe containing merged predictor data for that day, and the date. Run this in parallel over models and sources.
+dailyFileSetsToDataframe <- function(daily_file_sets) {
+  parts <- lapply(daily_file_sets, function(fs) dataFilesToDataframe(fs))
+  df <- bindRowsForgiving(parts)
+  # Set row names to Serial
+  row.names(df) <- unlist(df[,'Serial'])
+  return(df)
+}
+
+# Call function for each day with the date and a hash mapping date strings to valid datafile sets. Run this in parallel over models and sources.
 visitPredictorDataframes <- function(data_files, required_sources, f, parallel=FALSE) {
-  daily_file_sets <- getDailyFileSets(data_files, required_sources)
+  daily_file_sets <- getDailyFileSetsHash(data_files, required_sources)
   sampling_log$debug(paste("Visiting", length(daily_file_sets), "daily data frames"))
-  visit <- function(file_sets) {
-    date <- file_sets[[1]][[1]]$date
-    parts <- plapply(file_sets, function(fs) dataFilesToDataframe(fs), parallel=parallel)
-    df <- bindRowsForgiving(parts)
-    # Set row names to Serial
-    row.names(df) <- unlist(df[,'Serial'])
-    res <- f(df, date)
+  visit <- function(date_string) {
+    file_sets <- daily_file_sets[[date_string]]
+    date <- as.Date(date_string)
+    df <- dailyFileSetsToDataframe(file_sets)
+    res <- f(df, date, daily_file_sets)
     return(res)
   }
-  res <- plapply(daily_file_sets, visit, parallel=parallel)
-  stopifnot(length(daily_file_sets)==length(res))
+  res <- plapply(keys(daily_file_sets), visit, parallel=parallel)
+  stopifnot(length(keys(daily_file_sets))==length(res))
   return(res)
 }
 
@@ -190,7 +202,7 @@ dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=1
   counters <- visitPredictorDataframes(
     data_files,
     required_sources,
-    function(df, date) {
+    function(df, date, daily_file_sets) {
       counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count)
       counter$processDay(df, date)
       return(counter)
@@ -218,15 +230,67 @@ dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=1
   return(counter)
 }
 
-# Sample dataframe to 100% coverage before taking duplicates
-sampleDataFrame <- function(df, date, counts) {
+
+getDeltaDataFrames <- function(date, daily_file_sets, delta_days) {
+  prior_file_sets <- lapply(delta_days, function(n) getWithDefault(daily_file_sets, as.character(date-n), list()))
+  if (any(unlist(lapply(prior_file_sets, function(fs) length(fs)==0)))) {
+    sampling_log$info(paste("Missing required previous data to generate deltas for", date, "- skipping"))
+    return(FALSE)
+  }
+  prior_dfs <- lapply(prior_file_sets, dailyFileSetsToDataframe)
+  if (any(unlist(lapply(prior_dfs, function(df) !is.data.frame(df))))) {
+    return(FALSE)
+  }
+  return(prior_dfs)
+}
+
+# Take a dataframe, a list of previous dataframes, and a matching list of deltas.
+# Return a dataframe containing serials present in all dataframes, augmented with deltas from the current dataframe.
+augmentWithDeltas <- function(df, previous, delta_days) {
+  prior_serials_parts <- lapply(previous, function(d) d[,"Serial"])
+  prior_serials <- Reduce(append, prior_serials_parts)
+  # User serials present in all dataframes
+  valid_serials <- intersect(prior_serials, unlist(df$Serial))
+  n_dropped <- length(df$Serial) - length(valid_serials)
+  if(length(valid_serials) == 0) {
+    sampling_log$info(paste("No valid serials, skipping"))
+    return(FALSE)
+  }
+  if(n_dropped > 0) {
+    sampling_log$debug(paste("Dropped", n_dropped, "records for", df$FileDate[[1]], "due to serials not being present in previous dataframes required to generate deltas"))
+  }
+  valid <- df[valid_serials,]
+  num_cols <- colnames(valid)[unlist(lapply(valid, is.numeric))]
+  parts <- list(valid)
+  cur <- valid[,num_cols]
+  for(i in 1:length(delta_days)) {
+    prev_df <- previous[[i]]
+    n_delta <- delta_days[[i]]
+    deltas <- cur - prev_df[valid_serials, num_cols]
+    colnames(deltas) <- paste(colnames(deltas), "delta", n_delta, sep=".")
+    parts <- append(parts, list(deltas))
+  }
+  res <- Reduce(cbind, parts)
+  return(res)
+}
+
+# Sample dataframe to 100% coverage before taking duplicates. Augment data with deltas to previous days for numeric values.
+sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,7)) {
   # TODO: currently if a serial has multiple SC codes, we sample independently for each code.
   # Combined sampling or adjusting frequencies to drop overlapped samples would improve efficiency and class balance.
   sampling_log$debug(paste("Sampling dataset for", date))
+  prior_dfs <- getDeltaDataFrames(date, daily_file_sets, delta_days)
+  if(!is.list(prior_dfs)) {
+    return(FALSE)
+  }
+  augmented <- augmentWithDeltas(df, prior_dfs, delta_days)
+  if(!is.data.frame(augmented)) {
+    return(FALSE)
+  }
   freqs <- counts$getSamplingFrequencies()
   serial_to_codes = counts$getSerialToCodes()
   code_to_serials <- hash()
-  for(serial in df$Serial) {
+  for(serial in augmented$Serial) {
     cs <- getWithDefault(serial_to_codes, serial, list())
     hits <- getMatchingCodes(cs, date, counts$sc_days)
     hit_codes <- unique(lapply(hits, function(c) c$SC_CD))
@@ -248,20 +312,22 @@ sampleDataFrame <- function(df, date, counts) {
     sampled_serials <- append(sampled_serials, sampled)
   }
   n <- length(sampled_serials)
-  res <- df[unlist(sampled_serials),]
+  res <- augmented[unlist(sampled_serials),]
   stopifnot(nrow(res)==n)
   return(res)
 }
 
-dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, sc_days=14, parallel=TRUE) {
+dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, sc_days=14, delta_days=c(1, 3, 7), parallel=TRUE) {
   parts <- visitPredictorDataframes(
     data_files,
     required_sources,
-    function(df, date) sampleDataFrame(df, date, counts),
+    function(df, date, daily_file_sets) sampleDataFrame(df, date, counts, daily_file_sets, delta_days),
     parallel=parallel
   )
-  total_rows_parts <- sum(unlist(lapply(parts, nrow)))
-  res <- bindRowsForgiving(parts)
+  # Filter out results for days without required data to generate deltas
+  filtered_parts <- filterBy(parts, function(p) is.data.frame(p))
+  total_rows_parts <- sum(unlist(lapply(filtered_parts, nrow)))
+  res <- bindRowsForgiving(filtered_parts)
   total_rows <- nrow(res)
   if(total_rows != total_rows_parts) {
     print(paste("Dropped", total_rows - total_rows_parts, "rows when combining daily dataframes"))
