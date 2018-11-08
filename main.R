@@ -36,7 +36,7 @@ library(profvis)
 data_days = 1000
 
 # Target samples (will pick up extra samples where there are multiple applicable codes)
-total_samples <- 10000
+total_samples <- 20000
 
 # Maximum number of days to predict SC code
 sc_code_days = 14
@@ -95,10 +95,10 @@ for(c in target_codes) {
 # Feature Names
 ################################################################################
 
-fs <- append(
-  read_features(features),
-  read_daily_features(daily_features)
-)
+# fs <- append(
+#   read_features(features),
+#   read_daily_features(daily_features)
+# )
 
 # TODO: Investigate apparent effect of feature order on RandomTree implementation
 #fs<-sample(fs)
@@ -108,7 +108,6 @@ fs <- append(
 # SC Codes
 ################################################################################
 
-
 codes_all <- codesForRegionsAndModels(regions, models, parallel)
 code_indices <- plapply(splitDataFrame(codes_all), function(c) has.key(c$SC_CD, target_code_hash))
 codes <- codes_all[unlist(code_indices),]
@@ -117,10 +116,16 @@ codes <- codes_all[unlist(code_indices),]
 # Sample dataset
 ################################################################################
 
-data_files <- instancesForDir()
+all_data_files <- instancesForDir()
 
-# Restrict data set for debugging
-file_sets <- getDailyFileSets(data_files, sources)
+# Restrict data set to days for which we have current SC code data, and a maximum of data_days
+sc_files <- filterBy(all_data_files, function(f) f$source=="SC")
+sc_files <- sortBy(sc_files, function(f) f$date)
+stopifnot(length(sc_files) > 0)
+latest_sc_file_date <- as.Date(last(sortBy(sc_files, function(f) f$date))$date)
+latest_data_file_date <- latest_sc_file_date - sc_code_days
+filtered_data_files <- filterBy(all_data_files, function(f) as.Date(f$date) < latest_data_file_date)
+file_sets <- getDailyFileSets(filtered_data_files, sources)
 data_files <- unlist(file_sets[1:data_days])
 
 require(profvis)
@@ -131,7 +136,7 @@ print(counts$getCounts())
 counts$setTargetSC(positive_samples)
 counts$setTargetControl(control_samples)
 predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_days, parallel=parallel)
-E#View(predictors[1:5,1:5])
+#View(predictors[1:5,1:5])
 #})
 
 #predictors <- predictors %>% mutate_if(sapply(predictors, is.factor), as.character)
@@ -144,6 +149,9 @@ E#View(predictors[1:5,1:5])
 
 # Set Seed so that same sample can be reproduced in future
 set.seed(101) 
+
+# Randomize predictor order
+predictors<-predictors[sample(nrow(predictors)),]
 
 serial_to_codes <- counts$getSerialToCodes()
 
@@ -184,7 +192,7 @@ for(codes in matching_code_sets_unique) {
 
 
 default_frac <- .75 
-# For reference, will encourage memorizing cases
+# For reference only, will encourage memorizing cases
 randomSplit <- function(predictors, frac=default_frac) {
   indices <- runif(length(predictors)) <= frac
   return(indices)
@@ -198,26 +206,41 @@ serialSplit <- function(predictors, frac=default_frac) {
   return(indices)
 }
 
-# Approximate split of samples by time, oldest first
+# Approximate split of samples by time, oldest first.
 timeSplit <- function(predictors, frac=default_frac) {
-    orders <- order(predictors$GetDate)
+    orders <- order(predictors$FileDate)
     newest <- head(orders, floor(length(orders) * (1-frac)))
     res <- rep(TRUE, nrow(predictors))
     res[newest] <- FALSE
     return(res)
 }
 
-# TODO: subsets with unique serials and non-overlapping time ranges (necessarily discards some of the data)
+# Work around Rs inability to compare references to functions
+split_fs <- hash(
+  c("randomSplit", "serialSplit", "timeSplit"),
+  c(randomSplit, serialSplit, timeSplit)
+)
 
+#split_type <- "randomSplit"
+split_type <- "serialSplit"
+#split_type <- "timeSplit"
 
-#sample_vector <- serialSplit(predictors)
-sample_vector <- timeSplit(predictors)
-#sample_vector <- randomSplit(predictors)
+split_vector <- split_fs[[split_type]](predictors)
 
-train_raw <- predictors[sample_vector, ]
-test_raw <- predictors[!sample_vector, ]
-train_responses <- responses[sample_vector, ]
-test_responses <- responses[!sample_vector, ]
+train_vector <- split_vector
+test_vector <- !split_vector
+# If splitting on time, drop sc_code_days worth of data before split so we don't count cases where there is overlap.
+if(split_type == "timeSplit") {
+  print(paste("Dropping", sc_code_days, "days of training data to prevent SC code window overlapping with test set"))
+  predictor_dates <- as.Date(predictors$FileDate)
+  train_dates <- predictor_dates[train_vector]
+  latest <- sort(train_dates, decreasing=TRUE)[[1]]
+  latest_eligible <- latest - sc_code_days
+  train_vector <- unlist(lapply(predictor_dates, function(d) d <= latest_eligible)) & train_vector
+  if(sum(train_vector) == 0) {
+    stop("No eligible training data")
+  }
+}
 
 
 ################################################################################
@@ -260,15 +283,18 @@ predictors_eligible <- take_eligible(predictors, string_factors=FALSE)
 
 require(mlr)
 
+# Make R-standard names
+label_names <- make.names(used_labels)
+predictor_names <- make.names(colnames(data))
 
 data <- bind_cols(predictors_eligible, responses)
-colnames(data) <- make.names(colnames(data))
+colnames(data) <- predictor_names
 
-train_data <- data[sample_vector,]
-test_data <- data[!sample_vector,]
+train_data <- data[train_vector,]
+test_data <- data[test_vector,]
 
-train_task <- makeMultilabelTask(data = train_data, target = unlist(make.names(used_labels)))
-test_task <- makeMultilabelTask(data = test_data, target = unlist(make.names(used_labels)))
+train_task <- makeMultilabelTask(data = train_data, target = unlist(label_names))
+test_task <- makeMultilabelTask(data = test_data, target = unlist(label_names))
 
 lrn <- makeLearner("classif.ranger", par.vals=list(
   num.threads = ncores,
@@ -284,8 +310,13 @@ pred <- predict(mod, test_task)
 mlr::performance(pred, measure <- list(multilabel.hamloss, multilabel.subset01, multilabel.f1))
 perf <- getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
 sorted_perf <- perf[order(perf[,"auc.test.mean"], decreasing=TRUE),]
+
+print(summary(pred$data))
+
 print(sorted_perf)
 
+extra_stats <- getExtraMultiLabelStats(pred, label_names)
+print(extra_stats)
 
 ################################################################################
 # Feature Selection

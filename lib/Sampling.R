@@ -112,7 +112,7 @@ InstanceCounter <- setRefClass(
     getTotal = function() .self$n_total,
     getNegative = function() .self$negative,
     setMinCount = function(x) .self$min_count <- x,
-    # Get sampling frequencies for SC codes sucht that we have approximately equal representation for each code.
+    # Get sampling frequencies for SC codes such that we have approximately equal representation for each code.
     # Return a hash mapping SC code to frequency
     getSamplingFrequencies = function() {
       cs <- .self$getCounts()
@@ -128,6 +128,18 @@ InstanceCounter <- setRefClass(
         } else {
           res[[code]] <- target / cs[[code]]
         }
+      }
+      return(res)
+    },
+    # Get frequencies for each code, including control cases
+    getFrequencies = function() {
+      cs <- .self$getCounts()
+      res <- hash()
+      if(length(cs)==0) {
+        return(res)
+      }
+      for(code in keys(cs)) {
+          res[[code]] <- cs[[code]] / .self$n_total
       }
       return(res)
     },

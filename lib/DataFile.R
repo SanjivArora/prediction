@@ -5,7 +5,6 @@ require(R.utils)
 source('lib/Util.R')
 source('lib/Parallel.R')
 
-default_sources=c('Count', 'PMCount')
 base_path="~/data/"
 timezone="UTC"
 
@@ -80,6 +79,13 @@ DataFile <- setRefClass("DataFile",
       df$Serial <- paste(df$Model, df$Serial, sep="")
       # Create a standardized RetrievedDate date field for convenience
       df[,"RetrievedDate"] <- df[,date_field]
+      # Set file date
+      if(nrow(df) > 0) {
+       df[,"FileDate"] <- .self$date
+      } else {
+        # Work around for 0 row dataframes
+        df[,"FileDate"] <- df[,date_field]
+      }
       # Set row names to Serial
       row.names(df) <- unlist(df[,'Serial'])
 
@@ -101,13 +107,13 @@ DataFile <- setRefClass("DataFile",
 
 # Reference classes have no supprt for class or static methods, so define functions that notionally belong to the class but not the instances here 
 
-# Class method to return merged dataframe from list of instances. Merge on Serial and set row names to serial numbers.
+# Class method to return merged dataframe from list of instances. Merge on Serial and FileDate and set row names to serial numbers.
 dataFilesToDataframe <- function(instances, parallel=TRUE) {
   
   dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel=parallel)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
-    merge_on <- c("Serial")
+    merge_on <- c("Serial", "FileDate")
     for (frame in dataframes[2:length(dataframes)]) {
       res <- merge(res, frame, by.x = merge_on,by.y = merge_on)
     }
