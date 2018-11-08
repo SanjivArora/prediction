@@ -28,9 +28,9 @@ plotROC <- function(rf, data, labels) {
 }
 
 # For use with MLR multi-label wrapper results. Generate stats for each confidence level in levels.
-getExtraMultiLabelStats <- function(pred, labels, levels=c(0.50, 0.60, 0.70, 0.80, 0.90)) {
+getExtraMultiLabelStats <- function(pred, raw_labels, counts, levels=c(0.50, 0.60, 0.70, 0.80, 0.90)) {
   # TODO: Is there a cleaner way to do this?
-  col_names <- list("label")
+  col_names <- list("label", "base.frequency", "sample.frequency", "sample.rate", "sample.ratio", "sample.size")
   res_part_names <- list("precision", "recall")
   # Show levels as percentages for clean display
   for(level in levels*100) {
@@ -43,11 +43,18 @@ getExtraMultiLabelStats <- function(pred, labels, levels=c(0.50, 0.60, 0.70, 0.8
   colnames(res) <- col_names
   res[,1] <- as.character(res[,1])
   data <- pred$data
-  for(label in labels) {
-    r <- list(label)
+  for(raw_label in raw_labels) {
+    label=make.names(raw_label)
+    truth <- data[, paste("truth.", label, sep="")]
+    prob <- data[,paste("prob.", label, sep="")]
+    sample_freq <- sum(truth) / nrow(data)
+    base_freq <- counts$getFrequencies()[[raw_label]]
+    sample_rate <- counts$getSamplingFrequencies()[[raw_label]]
+    sample_ratio <- sample_freq / base_freq
+    sample_size <- sum(truth)
+    r <- list(label, base_freq, sample_freq, sample_rate, sample_ratio, sample_size)
     for(level in levels) {
-      prediction <- data[,paste("prob.", label, sep="")] >= level
-      truth <- data[, paste("truth.", label, sep="")]
+      prediction <- prob >= level
       true_positives <- prediction & truth
       false_positives <- prediction & !truth
       precision <- sum(true_positives) / (sum(true_positives) + sum(false_positives))
@@ -58,6 +65,6 @@ getExtraMultiLabelStats <- function(pred, labels, levels=c(0.50, 0.60, 0.70, 0.8
   }
   res <- res[2:nrow(res),]
   row.names(res) <- res[,"label"]
-  res[,2:nrow(res)] <- lapply(extra_stats[,2:nrow(res)], as.numeric)
+  res[,2:nrow(res)] <- lapply(res[,2:nrow(res)], as.numeric)
   return(res)
 }

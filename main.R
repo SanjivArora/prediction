@@ -33,22 +33,26 @@ library(profvis)
 #profvis({
 
 # Number of days of predictor data files to use for training
-data_days = 60
+data_days <- 1000
 
 # Target samples (will pick up extra samples where there are multiple applicable codes)
-total_samples <- 5000
+total_samples <- 10000
 
 # Maximum number of days to predict SC code
-sc_code_days = 7
+sc_code_days <- 14
 #sc_code_days=2
 
 # Minimum number of sample-days to predict an SC code
-min_count=100
+min_count <- 100
 
 # Offsets to use for generating deltas for numerical data
-delta_days = c(1, 3, 7)
+delta_days <- c(1, 3, 7)
 #delta_days = c(1, 2)
 
+deltas <- TRUE
+
+# Drop non-delta numerical values
+only_deltas <- FALSE
 
 regions = c(
   'RNZ'
@@ -59,8 +63,8 @@ models= c(
   'E15'
 )
 
-#parallel=TRUE
 parallel=TRUE
+#parallel=FALSE
 
 features = c(
   #'test5.txt'
@@ -140,7 +144,17 @@ counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, min_count
 print(counts$getCounts())
 counts$setTargetSC(positive_samples)
 counts$setTargetControl(control_samples)
-predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_days, delta_days=delta_days, parallel=parallel)
+predictors <- dataFilesToDataset(
+  data_files,
+  sources,
+  codes,
+  counts,
+  sc_code_days,
+  delta_days=delta_days,
+  deltas=deltas,
+  only_deltas=only_deltas,
+  parallel=parallel
+)
 #View(predictors[1:5,1:5])
 #})
 
@@ -155,8 +169,10 @@ predictors <- dataFilesToDataset(data_files, sources, codes, counts, sc_code_day
 # Set Seed so that same sample can be reproduced in future
 set.seed(101) 
 
-# Randomize predictor order
+# Randomize predictor row order
 predictors<-predictors[sample(nrow(predictors)),]
+# Randomize predictor column order
+predictors<-predictors[,sample(ncol(predictors))]
 
 serial_to_codes <- counts$getSerialToCodes()
 
@@ -184,6 +200,7 @@ used_labels <- keys(counts$getCounts())
 used_labels <- used_labels[used_labels!="0"]
 
 
+# Calculate responses
 i<-1
 responses <- data.frame()
 for(xs in matching_code_sets_unique) {
@@ -288,11 +305,12 @@ predictors_eligible <- take_eligible(predictors, string_factors=FALSE)
 
 require(mlr)
 
+data <- bind_cols(predictors_eligible, responses)
+
 # Make R-standard names
 label_names <- make.names(used_labels)
 predictor_names <- make.names(colnames(data))
 
-data <- bind_cols(predictors_eligible, responses)
 colnames(data) <- predictor_names
 
 train_data <- data[train_vector,]
@@ -303,7 +321,7 @@ test_task <- makeMultilabelTask(data = test_data, target = unlist(label_names))
 
 lrn <- makeLearner("classif.ranger", par.vals=list(
   num.threads = ncores,
-  num.trees = 1000
+  num.trees = 2000
   #sample.fraction = 0.2
 ))
 lrn <- makeMultilabelBinaryRelevanceWrapper(lrn)
@@ -318,9 +336,11 @@ sorted_perf <- perf[order(perf[,"auc.test.mean"], decreasing=TRUE),]
 
 print(summary(pred$data))
 
+print(counts$getFrequencies())
+
 print(sorted_perf)
 
-extra_stats <- getExtraMultiLabelStats(pred, label_names)
+extra_stats <- getExtraMultiLabelStats(pred, used_labels, counts)
 print(extra_stats)
 
 ################################################################################

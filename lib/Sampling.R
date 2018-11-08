@@ -1,5 +1,6 @@
 require(hash)
 require(dplyr)
+require(testit)
 
 source("lib/Util.R")
 source("lib/Parallel.R")
@@ -246,44 +247,65 @@ getDeltaDataFrames <- function(date, daily_file_sets, delta_days) {
 
 # Take a dataframe, a list of previous dataframes, and a matching list of deltas.
 # Return a dataframe containing serials present in all dataframes, augmented with deltas from the current dataframe.
-augmentWithDeltas <- function(df, previous, delta_days) {
+augmentWithDeltas <- function(df, date, previous, delta_days, only_deltas=FALSE) {
+  assert(is.data.frame(df))
   prior_serials_parts <- lapply(previous, function(d) d[,"Serial"])
   prior_serials <- Reduce(append, prior_serials_parts)
   # User serials present in all dataframes
   valid_serials <- intersect(prior_serials, unlist(df$Serial))
   n_dropped <- length(df$Serial) - length(valid_serials)
   if(length(valid_serials) == 0) {
-    sampling_log$info(paste("No valid serials, skipping"))
+    sampling_log$info(paste("No valid serials for", date, "- skipping"))
     return(FALSE)
   }
   if(n_dropped > 0) {
-    sampling_log$debug(paste("Dropped", n_dropped, "records for", df$FileDate[[1]], "due to serials not being present in previous dataframes required to generate deltas"))
+    sampling_log$debug(paste("Dropped", n_dropped, "records for", date, "due to serials not being present in previous dataframes required to generate deltas"))
   }
   valid <- df[valid_serials,]
-  num_cols <- colnames(valid)[unlist(lapply(valid, is.numeric))]
+  num_col_vector <- unlist(lapply(valid, is.numeric))
+  cur <- valid[,num_col_vector]
+  # Use column names with previous data in case of order change or added/removed columns
+  num_cols <- colnames(valid)[num_col_vector]
+  # Drop non-delta numerical data if enabled
+  if(only_deltas) {
+    valid <- valid[,!num_col_vector]
+  }
   parts <- list(valid)
-  cur <- valid[,num_cols]
   for(i in 1:length(delta_days)) {
     prev_df <- previous[[i]]
+    assert(is.data.frame(prev_df))
     n_delta <- delta_days[[i]]
-    deltas <- cur - prev_df[valid_serials, num_cols]
+    prev <- prev_df[valid_serials, num_cols]
+    non_num_cols <- colnames(prev)[unlist(lapply(prev, function(c) !is.numeric(c)))]
+    if (length(non_num_cols)>0) {
+      sampling_log$info(paste(length(non_num_cols),"columns that are numeric for", date, "but not for", date-n_delta))
+      lapply(non_num_cols, sampling_log$debug)
+      # Need a better long term solution, this coercion will introduce a lot of noise
+      prev[,non_num_cols] <- lapply(prev[,non_num_cols], as.numeric)
+    }
+    deltas <- cur - prev
     colnames(deltas) <- paste(colnames(deltas), "delta", n_delta, sep=".")
     parts <- append(parts, list(deltas))
   }
   res <- Reduce(cbind, parts)
+  assert(is.data.frame(res))
   return(res)
 }
 
 # Sample dataframe to 100% coverage before taking duplicates. Augment data with deltas to previous days for numeric values.
-sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,7)) {
+sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,7), deltas=TRUE, only_deltas=TRUE) {
   # TODO: currently if a serial has multiple SC codes, we sample independently for each code.
   # Combined sampling or adjusting frequencies to drop overlapped samples would improve efficiency and class balance.
   sampling_log$debug(paste("Sampling dataset for", date))
-  prior_dfs <- getDeltaDataFrames(date, daily_file_sets, delta_days)
-  if(!is.list(prior_dfs)) {
-    return(FALSE)
+  if(deltas) {
+    prior_dfs <- getDeltaDataFrames(date, daily_file_sets, delta_days)
+    if(!is.list(prior_dfs)) {
+      return(FALSE)
+    }
+    augmented <- augmentWithDeltas(df, date, prior_dfs, delta_days, only_deltas)
+  } else {
+    augmented <- df
   }
-  augmented <- augmentWithDeltas(df, prior_dfs, delta_days)
   if(!is.data.frame(augmented)) {
     return(FALSE)
   }
@@ -313,15 +335,16 @@ sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,
   }
   n <- length(sampled_serials)
   res <- augmented[unlist(sampled_serials),]
-  stopifnot(nrow(res)==n)
+  assert(is.data.frame(res))
+  assert(nrow(res)==n)
   return(res)
 }
 
-dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, sc_days=14, delta_days=c(1, 3, 7), parallel=TRUE) {
+dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, sc_days=14, delta_days=c(1, 3, 7), deltas=TRUE, only_deltas=TRUE, parallel=TRUE) {
   parts <- visitPredictorDataframes(
     data_files,
     required_sources,
-    function(df, date, daily_file_sets) sampleDataFrame(df, date, counts, daily_file_sets, delta_days),
+    function(df, date, daily_file_sets) sampleDataFrame(df, date, counts, daily_file_sets, delta_days, deltas, only_deltas),
     parallel=parallel
   )
   # Filter out results for days without required data to generate deltas
