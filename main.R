@@ -46,7 +46,7 @@ sc_code_days <- 14
 min_count <- 100
 
 # Offsets to use for generating deltas for numerical data
-delta_days <- c(1, 3, 7)
+delta_days <- c(3, 7)
 #delta_days = c(1, 2)
 
 deltas <- TRUE
@@ -305,6 +305,8 @@ predictors_eligible <- take_eligible(predictors, string_factors=FALSE)
 
 require(mlr)
 
+importance <- TRUE
+
 data <- bind_cols(predictors_eligible, responses)
 
 # Make R-standard names
@@ -320,8 +322,9 @@ train_task <- makeMultilabelTask(data = train_data, target = unlist(label_names)
 test_task <- makeMultilabelTask(data = test_data, target = unlist(label_names))
 
 lrn <- makeLearner("classif.ranger", par.vals=list(
-  num.threads = ncores,
-  num.trees = 2000
+  num.threads = detectCores() - 1,
+  num.trees = 2000,
+  importance = 'impurity'
   #sample.fraction = 0.2
 ))
 lrn <- makeMultilabelBinaryRelevanceWrapper(lrn)
@@ -343,6 +346,20 @@ print(sorted_perf)
 extra_stats <- getExtraMultiLabelStats(pred, used_labels, counts)
 print(extra_stats)
 
+showModelFeatureImportance <- function(model, n=25) {
+  x <- getFeatureImportance(model)
+  features_desc <- x$res[, order(x$res[1,], decreasing=T)]
+  top_n <- t(features_desc[,1:n])
+  print(top_n)
+}
+
+if(importance) {
+  for(label in label_names) {
+    cat("\n\n")
+    print(paste("Importance for", label))
+    showModelFeatureImportance(mod$learner.model$next.model[[label]])
+  }
+}
 ################################################################################
 # Feature Selection
 ################################################################################
