@@ -74,10 +74,12 @@ InstanceCounter <- setRefClass(
     # Hash mapping code number to count. "0" is a special key for control case instances (i.e. no SC codes).
     counts = "hash",
     # Total number of predictor rows
-    n_total = "numeric"
+    n_total = "numeric",
+    # If set, cap sampling frequency at this amount
+    cap_freq = "numeric"
   ),
   methods = list(
-    initialize = function(..., sc_days=14, min_count=10, n_target_sc=1000, n_target_control=1000) {
+    initialize = function(..., sc_days=14, min_count=10, n_target_sc=1000, n_target_control=1000, cap_freq=NA) {
       callSuper(...)
       .self$sc_days <- sc_days
       .self$min_count <- min_count
@@ -88,6 +90,7 @@ InstanceCounter <- setRefClass(
       .self$n_total <- 0
       .self$n_target_sc <- n_target_sc
       .self$n_target_control <- n_target_control
+      .self$cap_freq <- cap_freq
     },
     # Accept a dataframe for predictor data for the day - expects to be called in order but OK to skip calls for days with no data
     processDay = function(day_data, date) {
@@ -128,12 +131,20 @@ InstanceCounter <- setRefClass(
       }
       # Don't count the control cases
       target <- .self$n_target_sc / (length(cs) - 1)
-      res <- hash()
+      freqs <- hash()
       for(code in keys(cs)) {
         if(code=="0") {
-          res[["0"]] <- .self$n_target_control  / cs[["0"]]
+          freqs[["0"]] <- .self$n_target_control  / cs[["0"]]
         } else {
-          res[[code]] <- target / cs[[code]]
+          freqs[[code]] <- target / cs[[code]]
+        }
+      }
+      # If cap_freq is set, cap sampling frequencies to this value
+      if(!is.na(.self$cap_freq)) {
+        res <- hash()
+        for(code in keys(freqs)) {
+          frq <- freqs[[code]]
+          res[[code]] <- min(frq, .self$cap_freq)
         }
       }
       return(res)
@@ -195,8 +206,13 @@ visitPredictorDataframes <- function(data_files, required_sources, f, parallel=F
   return(res)
 }
 
-dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=14, min_count=10, parallel=TRUE) {
-  counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count)
+dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=14, min_count=10, cap_sampling=TRUE, parallel=TRUE) {
+  if(cap_sampling) {
+    cap_freq <- 1
+  } else {
+    cap_freq <- NA
+  }
+  counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count, cap_freq=cap_freq)
   # Dirty trick for efficient parallelization - if executing in parallel, update the counter with count hashes from children.
   # Since the counter environment in this process will not be updated in parallel execution, this works.
   # If we are executing serially, the counter will automatically update.
@@ -204,7 +220,7 @@ dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=1
     data_files,
     required_sources,
     function(df, date, daily_file_sets) {
-      counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count)
+      counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count, cap_freq=cap_freq)
       counter$processDay(df, date)
       return(counter)
     },
