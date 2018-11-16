@@ -34,12 +34,15 @@ groupBy <- function(xs, f) {
 }
 
 # Take a list/vector of objects and a function mapping object to orderable key, and return objects sorted by key
-sortBy <- function(xs, f) {
+sortBy <- function(xs, f, desc=FALSE) {
   xs <- valuesIfHash(xs)
   if(length(xs) == 0) {
     return(xs)
   }
   res <- xs[order(unlist(lapply(xs, f)))]
+  if(desc) {
+    res <- rev(res)
+  }
   return(res)
 }
 

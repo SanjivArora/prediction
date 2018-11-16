@@ -93,6 +93,8 @@ for(c in target_codes) {
   target_code_hash[[as.character(c)]] <- TRUE
 }
 
+date_field <- "GetDate"
+
 ################################################################################
 # Feature Names
 ################################################################################
@@ -155,14 +157,64 @@ predictors_all <- dataFilesToDataset(
 
 #predictors <- predictors %>% mutate_if(sapply(predictors, is.factor), as.character)
 
-
 ################################################################################
 # Eliminate predictors with a single unique value
 ################################################################################
 
-unique_val_counts <- sapply(predictors, function(c) length(unique(c)))
+unique_val_counts <- sapply(predictors_all, function(c) length(unique(c)))
 # Drop predictors with one or more unique values
 predictors <- predictors_all[,unique_val_counts > 1]
+
+
+################################################################################
+# Add predictors for historical SC codes
+################################################################################
+
+serial_to_codes <- counts$getSerialToCodes()
+
+getPreviousCodesForRow <- function(row) {
+  getMatchingCodesBefore(serial_to_codes[[row$Serial]], row[,date_field])
+}
+
+# Pass in only required values for efficiency
+previous_code_sets <- lapply(
+  splitDataFrame(predictors[,c("Serial", date_field)]),
+  getPreviousCodesForRow
+)
+
+# Get the last instance of each SC code (works due to uniqueBy returning the last matching value)
+previous_code_sets_sorted <- lapply(
+  previous_code_sets,
+  function(cs) sortBy(cs, function(c) c$OCCUR_DATE)
+)
+previous_code_sets_unique <- lapply(previous_code_sets_sorted, function(cs) uniqueBy(cs, function(c) c$SC_CD))
+
+
+index_to_hist_sc <- function(i, default_delta=10000) {
+  code_set <- previous_code_sets_unique[[i]]
+  predictor_row <- predictors[i,]
+  cs <- groupBy(code_set, function(c) c$SC_CD)
+  part <- list()
+  predictor_date <- predictor_row[,date_field]
+  for(label in used_labels) {
+    if(has.key(label, cs)) {
+      c <- cs[[label]][[1]]
+      delta <- predictor_date - c$OCCUR_DATE
+    } else {
+      delta <- default_delta
+    }
+    part <- append(part, as.numeric(delta))
+  }
+  res <- matrix(unlist(part), nrow=1)
+  res <- as.data.frame(res)
+  return(res)
+}
+
+hist_sc_predictors_parts <- plapply(1:nrow(predictors), index_to_hist_sc, parallel=parallel)
+hist_sc_predictors <- bindRowsForgiving(hist_sc_predictors_parts)
+colnames(hist_sc_predictors) <- paste("days.since.last", used_labels, sep=".")
+
+predictors <- cbind(predictors, hist_sc_predictors)
 
 ################################################################################
 # Train and test datasets
@@ -177,21 +229,25 @@ predictors<-predictors[sample(nrow(predictors)),]
 # Randomize predictor column order
 predictors<-predictors[,sample(ncol(predictors))]
 
-serial_to_codes <- counts$getSerialToCodes()
 
-date_field <- "GetDate"
 getMatchingCodesForRow <- function(row) {
   getMatchingCodes(serial_to_codes[[row$Serial]], row[,date_field], counts$getSCDays())
 }
 
-# Pass in only required values for efficiency)
+# Pass in only required values for efficiency
 matching_code_sets <- lapply(
   splitDataFrame(predictors[,c("Serial", date_field)]),
   getMatchingCodesForRow
 )
 
+# Get the first instance of each SC code (works due to uniqueBy returning the last matching value)
+matching_code_sets_sorted <- lapply(
+  matching_code_sets,
+  function(cs) sortBy(cs, function(c) c$OCCUR_DATE, desc=TRUE)
+)
+matching_code_sets_unique <- lapply(matching_code_sets_sorted, function(cs) uniqueBy(cs, function(c) c$SC_CD))
+
 # Summarize code counts for final sampling
-matching_code_sets_unique <- lapply(matching_code_sets, function(cs) uniqueBy(cs, function(c) c$SC_CD))
 final_codes <- lapply(unlist(matching_code_sets_unique, recursive=FALSE), function(x) x$SC_CD)
 final_counts <- sort(table(unlist(final_codes)), decreasing=TRUE)
 print(paste(nrow(predictors), "total observations"))
@@ -359,16 +415,18 @@ lrn <- makeLearner("classif.ranger", par.vals=list(
   importance = 'impurity'
   #sample.fraction = 0.2
 ))
+
 lrn <- makeMultilabelBinaryRelevanceWrapper(lrn)
 lrn <- setPredictType(lrn, "prob")
 #lrn <- setPredictType(lrn, "response")
 
 
 mod <- mlr::train(lrn, train_task, weights=weights)
+#mod <- mlr::train(lrn, train_task)
 pred <- predict(mod, test_task)
 
 mlr::performance(pred, measure <- list(multilabel.hamloss, multilabel.subset01, multilabel.f1))
-#perf <- getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
+perf <- getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
 sorted_perf <- perf[order(perf[,"auc.test.mean"], decreasing=TRUE),]
 
 print(summary(pred$data))
@@ -403,16 +461,26 @@ r <- as.matrix(sapply(response, as.numeric))
 # We can only graph classes with positive labels
 to_graph <- apply(r, 2, function(c) sum(c) > 0)
 
-plot_roc <- function(prob, truth, cutoff_ratio=9) {
+plot_roc <- function(prob, truth) {
   roc_pred <- ROCR::prediction(prob, truth)
   roc_perf <- ROCR::performance(roc_pred, 'tpr', 'fpr')
   ROCR::performance(roc_pred, 'auc')
   ROCR::plot(roc_perf, colorize=TRUE)
-  abline(0,cutoff_ratio,col='red')
 }
 
-# Plot ROC for all submodels:
-plot_roc(p[,to_graph], r[,to_graph])
+plot_prec <- function(prob, truth) {
+  roc_pred <- ROCR::prediction(prob, truth)
+  roc_perf <- ROCR::performance(roc_pred, 'prec', 'rec')
+  ROCR::performance(roc_pred, 'auc')
+  ROCR::plot(roc_perf, colorize=TRUE)
+}
+
+
+# Plot ROC and precision for all submodels
+#plot_roc(p[,to_graph], r[,to_graph])
+
+# Plot precision vs recall for allsubmodels
+plot_prec(p[,to_graph], r[,to_graph])
 
 # 
 # roc_pred <- ROCR::prediction(ROCR.simple$predictions, ROCR.simple$labels)
