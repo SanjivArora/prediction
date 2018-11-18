@@ -76,7 +76,7 @@ positive_samples <- total_samples / 2
 # Total sample for control instances
 control_samples <- total_samples / 2
 
-
+# Specify target codes. Note: prediction is based on a <code>_<subcode> label, currently we don't filter on subcode.
 target_codes <- list(
   200:299, # "C01 NOT FUNCTION AT ALL"
   600:699, # "C01 NOT FUNCTION AT ALL"
@@ -187,13 +187,13 @@ previous_code_sets_sorted <- lapply(
   previous_code_sets,
   function(cs) sortBy(cs, function(c) c$OCCUR_DATE)
 )
-previous_code_sets_unique <- lapply(previous_code_sets_sorted, function(cs) uniqueBy(cs, function(c) c$SC_CD))
+previous_code_sets_unique <- lapply(previous_code_sets_sorted, function(cs) uniqueBy(cs, function(c) codeToLabel(c)))
 
 
 index_to_hist_sc <- function(i, default_delta=10000) {
   code_set <- previous_code_sets_unique[[i]]
   predictor_row <- predictors[i,]
-  cs <- groupBy(code_set, function(c) c$SC_CD)
+  cs <- groupBy(code_set, function(c) codeToLabel(c))
   part <- list()
   predictor_date <- predictor_row[,date_field]
   for(label in used_labels) {
@@ -245,10 +245,10 @@ matching_code_sets_sorted <- lapply(
   matching_code_sets,
   function(cs) sortBy(cs, function(c) c$OCCUR_DATE, desc=TRUE)
 )
-matching_code_sets_unique <- lapply(matching_code_sets_sorted, function(cs) uniqueBy(cs, function(c) c$SC_CD))
+matching_code_sets_unique <- lapply(matching_code_sets_sorted, function(cs) uniqueBy(cs, function(c) codeToLabel(c)))
 
 # Summarize code counts for final sampling
-final_codes <- lapply(unlist(matching_code_sets_unique, recursive=FALSE), function(x) x$SC_CD)
+final_codes <- lapply(unlist(matching_code_sets_unique, recursive=FALSE), function(c) codeToLabel(c))
 final_counts <- sort(table(unlist(final_codes)), decreasing=TRUE)
 print(paste(nrow(predictors), "total observations"))
 print("Sample counts for SC codes:")
@@ -261,7 +261,7 @@ used_labels <- used_labels[used_labels!="0"]
 
 # Calculate responses
 code_set_to_labels <- function(code_set) {
-  cs <- lapply(code_set, function(c) c$SC_CD)
+  cs <- lapply(code_set, function(c) codeToLabel(c))
   part <- used_labels %in% cs
   res <- matrix(part, nrow=1)
   res <- as.data.frame(res)

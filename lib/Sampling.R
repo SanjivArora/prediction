@@ -116,7 +116,7 @@ InstanceCounter <- setRefClass(
       for(serial in serials) {
         cs <- getWithDefault(.self$getSerialToCodes(), serial, list())
         hits <- getMatchingCodes(cs, date, .self$sc_days)
-        hit_codes <- unique(lapply(hits, function(c) c$SC_CD))
+        hit_codes <- unique(lapply(hits, function(c) codeToLabel(c)))
         for(c in hit_codes) {
           count <- getWithDefault(.self$counts, c, 0)
           .self$counts[[c]] <- count+1
@@ -347,7 +347,7 @@ sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,
   for(serial in augmented$Serial) {
     cs <- getWithDefault(serial_to_codes, serial, list())
     hits <- getMatchingCodes(cs, date, counts$sc_days)
-    hit_codes <- unique(lapply(hits, function(c) c$SC_CD))
+    hit_codes <- unique(lapply(hits, function(c) codeToLabel(c)))
     for (c in hit_codes) {
       current <- getWithDefault(code_to_serials, c, list())
       code_to_serials[[c]] <- append(current, serial)

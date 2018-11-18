@@ -32,7 +32,7 @@ source('lib/DataFile.R')
             OCCUR_TIME = as.character(OCCUR_TIME),
             OCCUR_DETAIL = as.character(OCCUR_DETAIL)
           )
-          # Filter out rows with null cpdes or dates
+          # Filter out rows with null codes or dates
           x <- x[!is.na(x$SC_CD) & !is.na(x$OCCUR_DATE),]
 
           parts <- append(parts, list(x))
@@ -59,4 +59,8 @@ codesFor <- function(f, parallel=TRUE) {
 codesForRegionsAndModels <- function(regions, models, parallel=TRUE) {
   res <- codesFor(function(f) f$model %in% models && f$region %in% regions && f$source=='SC', parallel=parallel)
   return(res)
+}
+
+codeToLabel <- function(c) {
+  paste(c$SC_CD, c$SC_SERIAL_CD, sep='_')
 }
