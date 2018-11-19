@@ -81,10 +81,10 @@ InstanceCounter <- setRefClass(
     sc_days = "numeric",
     # Minimum number of SC code instance days for code to register
     min_count = "numeric",
-    # Target total number of SC codes (approximate, for sampling)
-    n_target_sc = "numeric",
-    # Target total number of control cases (approximate, for sampling)
-    n_target_control = "numeric",
+    # Target total sample count (approximate)
+    n_target_total = "numeric",
+    # Target total number of positive observations (approximate, for sampling)
+    n_target_positive = "numeric",
     # Hash mapping serial to SC code rows
     serial_to_codes = "hash",
     # Hash mapping code number to count. "0" is a special key for control case instances (i.e. no SC codes).
@@ -92,10 +92,12 @@ InstanceCounter <- setRefClass(
     # Total number of predictor rows
     n_total = "numeric",
     # If set, cap sampling frequency at this amount
-    cap_freq = "numeric"
+    cap_freq = "numeric",
+    # If set, upsample positive cases per value of n_target_positive
+    upsample_positive = "logical"
   ),
   methods = list(
-    initialize = function(..., sc_days=14, min_count=10, n_target_sc=1000, n_target_control=1000, cap_freq=NA) {
+    initialize = function(..., sc_days=14, min_count=10, n_target_total=2000, n_target_positive=1000, cap_freq=1, upsample_positive=TRUE) {
       callSuper(...)
       .self$sc_days <- sc_days
       .self$min_count <- min_count
@@ -104,9 +106,10 @@ InstanceCounter <- setRefClass(
       .self$counts <- hash()
       .self$counts[["0"]] <- 0
       .self$n_total <- 0
-      .self$n_target_sc <- n_target_sc
-      .self$n_target_control <- n_target_control
+      .self$n_target_total <- n_target_total
+      .self$n_target_positive <- n_target_positive
       .self$cap_freq <- cap_freq
+      .self$upsample_positive <- upsample_positive
     },
     # Accept a dataframe for predictor data for the day - expects to be called in order but OK to skip calls for days with no data
     processDay = function(day_data, date) {
@@ -129,10 +132,10 @@ InstanceCounter <- setRefClass(
         .self$n_total <- .self$n_total + 1
       }
     },
-    getCounts = function() {
-      filterBy(.self$getRawCounts(), function(count) count >= .self$min_count)
+    getEligibleCounts = function() {
+      filterBy(.self$getCounts(), function(count) count >= .self$min_count)
     },
-    getRawCounts = function() {
+    getCounts = function() {
       .self$counts
     },
     getTotal = function() .self$n_total,
@@ -141,21 +144,36 @@ InstanceCounter <- setRefClass(
     # Get sampling frequencies for SC codes such that we have approximately equal representation for each code.
     # Return a hash mapping SC code to frequency
     getSamplingFrequencies = function() {
-      cs <- .self$getCounts()
-      if(length(cs)==0) {
-        return(hash())
-      }
-      # Don't count the control cases
-      target <- .self$n_target_sc / (length(cs) - 1)
-      freqs <- hash()
-      for(code in keys(cs)) {
-        if(code=="0") {
-          freqs[["0"]] <- .self$n_target_control  / cs[["0"]]
-        } else {
-          freqs[[code]] <- target / cs[[code]]
+      n_target_control <- .self$n_target_total - .self$n_target_positive
+      if(.self$upsample_positive) {
+        cs <- .self$getEligibleCounts()
+        if(length(cs)==0) {
+          return(hash())
+        }
+        # Don't count the control cases
+        target <- .self$n_target_positive / (length(cs) - 1)
+        freqs <- hash()
+        for(code in keys(cs)) {
+          if(code=="0") {
+            freqs[["0"]] <- n_target_control  / cs[["0"]]
+          } else {
+            freqs[[code]] <- target / cs[[code]]
+          }
+        }
+      } else {
+        cs <- .self$getCounts()
+        base_freqs <- .self$getFrequencies()
+        if(length(cs)==0) {
+          return(hash())
+        }
+        freqs <- hash()
+        for(code in keys(cs)) {
+          freqs[[code]] <- (.self$n_target_total / .self$n_total) * base_freqs[[code]]
         }
       }
+
       # If cap_freq is set, cap sampling frequencies to this value
+      res <- freqs
       if(!is.na(.self$cap_freq)) {
         res <- hash()
         for(code in keys(freqs)) {
@@ -183,18 +201,19 @@ InstanceCounter <- setRefClass(
     getSerialToCodes = function() {
       .self$serial_to_codes
     },
-    setTargetSC = function(x) {
-      .self$n_target_sc <- x
+    setTargetPositive = function(x) {
+      .self$n_target_positive <- x
     },
-    setTargetControl = function(x) {
-      .self$n_target_control <- x
+    setTargetTotal = function(x) {
+      .self$n_target_total <- x
     },
     # Merge another counter instance (for parallelization)
     mergeCounts = function(other) {
       .self$counts <- addHash(.self$counts, other$counts)
       .self$n_total <- .self$n_total + other$n_total
     },
-    getSCDays = function() {.self$sc_days}
+    getSCDays = function() {.self$sc_days},
+    setUpsamplePositive = function(x) {.self$upsample_positive <- x}
   )
 )
 
@@ -247,14 +266,14 @@ dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=1
       counter$mergeCounts(c)
     }
   }
-  dropped_counts <- subtractHash(counter$getRawCounts(), counter$getCounts())
+  dropped_counts <- subtractHash(counter$getCounts(), counter$getEligibleCounts())
   if(length(dropped_counts) > 0) {
     sampling_log$info(
-      paste("Dropped", length(dropped_counts), "counts for SC codes under the threshold of", counter$min_count, "instances")
+      paste(length(dropped_counts), "counts for SC codes under the eligibility threshold of", counter$min_count, "instances")
     )
   }
   # Always one control count
-  if(length(counter$getCounts()) == 1) {
+  if(length(counter$getEligibleCounts()) == 1) {
     sampling_log$warn("No eligible counts for SC codes")
   }
   if(counter$getControlCount()==0) {

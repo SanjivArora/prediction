@@ -37,17 +37,17 @@ data_days <- 1000
 
 # Target samples (will pick up extra samples where there are multiple applicable codes)
 #total_samples <- 1000000
-total_samples <- 40000
+total_samples <- 10000
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14
 #sc_code_days=2
 
-# Minimum number of sample-days to predict an SC code
+# Minimum number of sample-days to predict a label
 min_count <- 100
 
 # Offsets to use for generating deltas for numerical data
-delta_days <- c(3, 7, 14)
+delta_days <- c(14)
 #delta_days = c(1, 2)
 
 # If true, take a maximum of one sample for each observation
@@ -70,11 +70,12 @@ models= c(
 parallel=TRUE
 #parallel=FALSE
 
+# If true, sample positive cases to value of positive_samples rather than at base rate
+upsample_positive <- TRUE
 
 # Total samples for SC code instances
 positive_samples <- total_samples / 2
-# Total sample for control instances
-control_samples <- total_samples / 2
+
 
 # Specify target codes. Note: prediction is based on a <code>_<subcode> label, currently we don't filter on subcode.
 target_codes <- list(
@@ -138,9 +139,10 @@ require(profvis)
 #profvis({
 
 counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, min_count, cap_sampling, parallel=parallel)
-print(counts$getCounts())
-counts$setTargetSC(positive_samples)
-counts$setTargetControl(control_samples)
+print(counts$getEligibleCounts())
+counts$setTargetTotal(total_samples)
+counts$setTargetPositive(positive_samples)
+counts$setUpsamplePositive(upsample_positive)
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
@@ -255,7 +257,7 @@ print("Sample counts for SC codes:")
 print(final_counts)
 
 # Get labels for codes that meet the required threshold for instances
-used_labels <- keys(counts$getCounts())
+used_labels <- keys(counts$getEligibleCounts())
 used_labels <- used_labels[used_labels!="0"]
 
 
@@ -382,8 +384,8 @@ test_task <- makeMultilabelTask(data = test_data, target = unlist(label_names))
 # Calculate weights such that each positive class has .5/n_positive_classes, with the remaining half allocated to control cases.
 # Calculate target counts for each class
 sample_targets <- hash()
-for(k in keys(counts$getCounts())) {
-  sample_targets[[k]] <- counts$getCounts()[[k]] * counts$getSamplingFrequencies()[[k]]
+for(k in keys(counts$getEligibleCounts())) {
+  sample_targets[[k]] <- counts$getEligibleCounts()[[k]] * counts$getSamplingFrequencies()[[k]]
 }
 sample_target_total <- sum(values(sample_targets))
 n_positive_classes <- length(keys(sample_targets)) -1
@@ -482,14 +484,6 @@ plot_prec <- function(prob, truth) {
 # Plot precision vs recall for allsubmodels
 plot_prec(p[,to_graph], r[,to_graph])
 
-# 
-# roc_pred <- ROCR::prediction(ROCR.simple$predictions, ROCR.simple$labels)
-# roc_perf <- ROCR::performance(roc_pred, 'tpr', 'fpr')
-# ROCR::performance(roc_pred, 'auc')
-# ROCR::plot(roc_perf)
-
-# roc_data <- generateThreshVsPerfData(pred, (list(fpr, tpr)))
-# plotROCCurves(roc)
 
 # 
 # ################################################################################
