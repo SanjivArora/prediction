@@ -83,21 +83,21 @@ InstanceCounter <- setRefClass(
     min_count = "numeric",
     # Target total sample count (approximate)
     n_target_total = "numeric",
-    # Target total number of positive observations (approximate, for sampling)
-    n_target_positive = "numeric",
+    # Target fraction of positive observations if upsampling is enabled (approximate, for sampling)
+    n_target_positive_fraction = "numeric",
     # Hash mapping serial to SC code rows
     serial_to_codes = "hash",
     # Hash mapping code number to count. "0" is a special key for control case instances (i.e. no SC codes).
     counts = "hash",
     # Total number of predictor rows
     n_total = "numeric",
-    # If set, cap sampling frequency at this amount
+    # If set, cap sampling frequency at this amount when upsampling is enabled
     cap_freq = "numeric",
-    # If set, upsample positive cases per value of n_target_positive
+    # If set, upsample positive cases per value of n_target_positive_fraction
     upsample_positive = "logical"
   ),
   methods = list(
-    initialize = function(..., sc_days=14, min_count=10, n_target_total=2000, n_target_positive=1000, cap_freq=1, upsample_positive=TRUE) {
+    initialize = function(..., sc_days=14, min_count=10, n_target_total=2000, n_target_positive_fraction=0.5, cap_freq=1, upsample_positive=TRUE) {
       callSuper(...)
       .self$sc_days <- sc_days
       .self$min_count <- min_count
@@ -107,7 +107,7 @@ InstanceCounter <- setRefClass(
       .self$counts[["0"]] <- 0
       .self$n_total <- 0
       .self$n_target_total <- n_target_total
-      .self$n_target_positive <- n_target_positive
+      .self$n_target_positive_fraction <- n_target_positive_fraction
       .self$cap_freq <- cap_freq
       .self$upsample_positive <- upsample_positive
     },
@@ -143,15 +143,17 @@ InstanceCounter <- setRefClass(
     setMinCount = function(x) .self$min_count <- x,
     # Get sampling frequencies for SC codes such that we have approximately equal representation for each code.
     # Return a hash mapping SC code to frequency
-    getSamplingFrequencies = function() {
-      n_target_control <- .self$n_target_total - .self$n_target_positive
+    # This ignores interactions between codes, so the frequency will be overestimated if observations have multiple codes.
+    # As codes are expected to have low base rates this is usually fine for the intended use and allows a simple implementation.
+    getSamplingFrequencies = function(disable_sampling_cap=FALSE) {
+      n_target_control <- .self$n_target_total * (1 - .self$n_target_positive_fraction)
       if(.self$upsample_positive) {
         cs <- .self$getEligibleCounts()
         if(length(cs)==0) {
           return(hash())
         }
         # Don't count the control cases
-        target <- .self$n_target_positive / (length(cs) - 1)
+        target <- .self$n_target_total * .self$n_target_positive_fraction / (length(cs) - 1)
         freqs <- hash()
         for(code in keys(cs)) {
           if(code=="0") {
@@ -174,7 +176,7 @@ InstanceCounter <- setRefClass(
 
       # If cap_freq is set, cap sampling frequencies to this value
       res <- freqs
-      if(!is.na(.self$cap_freq)) {
+      if(!disable_sampling_cap && !is.na(.self$cap_freq)) {
         res <- hash()
         for(code in keys(freqs)) {
           frq <- freqs[[code]]
@@ -195,25 +197,41 @@ InstanceCounter <- setRefClass(
       }
       return(res)
     },
+    getTargetFrequency = function() {.self$getTargetTotal() / .self$getTotal()},
     getControlCount = function() {
       .self$counts[["0"]]
     },
     getSerialToCodes = function() {
       .self$serial_to_codes
     },
-    setTargetPositive = function(x) {
-      .self$n_target_positive <- x
+    getSerialToEligibleCodes = function() {
+      eligible_counts <- .self$getEligibleCounts()
+      mapHash(
+        .self$getSerialToCodes(),
+        function(cs) {
+          filterBy(
+            cs,
+            function(c) has.key(codeToLabel(c), eligible_counts)
+          )
+        }
+      )
     },
+    setTargetPositiveFraction = function(x) {
+      .self$n_target_positive_fraction <- x
+    },
+    getTargetPositiveFraction = function() {.self$n_target_positive_fraction},
     setTargetTotal = function(x) {
       .self$n_target_total <- x
     },
+    getTargetTotal = function() {.self$n_target_total},
     # Merge another counter instance (for parallelization)
     mergeCounts = function(other) {
       .self$counts <- addHash(.self$counts, other$counts)
       .self$n_total <- .self$n_total + other$n_total
     },
     getSCDays = function() {.self$sc_days},
-    setUpsamplePositive = function(x) {.self$upsample_positive <- x}
+    setUpsamplePositive = function(x) {.self$upsample_positive <- x},
+    getUpsamplePositive = function() {.self$upsample_positive}
   )
 )
 
@@ -360,29 +378,35 @@ sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,
   if(!is.data.frame(augmented)) {
     return(FALSE)
   }
-  freqs <- counts$getSamplingFrequencies()
-  serial_to_codes = counts$getSerialToCodes()
-  code_to_serials <- hash()
-  for(serial in augmented$Serial) {
-    cs <- getWithDefault(serial_to_codes, serial, list())
-    hits <- getMatchingCodes(cs, date, counts$sc_days)
-    hit_codes <- unique(lapply(hits, function(c) codeToLabel(c)))
-    for (c in hit_codes) {
-      current <- getWithDefault(code_to_serials, c, list())
-      code_to_serials[[c]] <- append(current, serial)
+  if(counts$getUpsamplePositive()) {
+    sampled_serials <- list()
+    freqs <- counts$getSamplingFrequencies()
+    serial_to_codes = counts$getSerialToCodes()
+    code_to_serials <- hash()
+    for(serial in augmented$Serial) {
+      cs <- getWithDefault(serial_to_codes, serial, list())
+      hits <- getMatchingCodes(cs, date, counts$sc_days)
+      hit_codes <- unique(lapply(hits, function(c) codeToLabel(c)))
+      for (c in hit_codes) {
+        current <- getWithDefault(code_to_serials, c, list())
+        code_to_serials[[c]] <- append(current, serial)
+      }
+      # If no hits, add to control cases
+      if(length(hits) == 0) {
+        current <- getWithDefault(code_to_serials, "0", list())
+        code_to_serials[["0"]] <- append(current, serial)
+      }
     }
-    # If no hits, add to control cases
-    if(length(hits) == 0) {
-      current <- getWithDefault(code_to_serials, "0", list())
-      code_to_serials[["0"]] <- append(current, serial)
+    for(code in keys(code_to_serials)) {
+      serials <- code_to_serials[[code]]
+      n <- getWithDefault(freqs, code, 0) * length(serials)
+      sampled <- stochasticSelection(serials, n)
+      sampled_serials <- append(sampled_serials, sampled)
     }
-  }
-  sampled_serials <- list()
-  for(code in keys(code_to_serials)) {
-    serials <- code_to_serials[[code]]
-    n <- getWithDefault(freqs, code, 0) * length(serials)
-    sampled <- stochasticSelection(serials, n)
-    sampled_serials <- append(sampled_serials, sampled)
+  } else {
+    # If we aren't upsampling, sample serials directly
+    n <- nrow(augmented) * counts$getTargetFrequency()
+    sampled_serials <- stochasticSelection(augmented$Serial, n)
   }
   n <- length(sampled_serials)
   res <- augmented[unlist(sampled_serials),]

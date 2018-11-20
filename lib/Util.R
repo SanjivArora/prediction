@@ -195,6 +195,7 @@ uniqueBy <- function(xs, f) {
   return(values(h, simplify=FALSE))
 }
 
+# Map hash {k,v} to {k,f(v)}
 mapHash <- function(h, f) {
   res <- hash()
   for(k in keys(h)) {

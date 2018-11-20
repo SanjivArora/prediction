@@ -1,7 +1,5 @@
 require(dplyr)
 require(memoise)
-require(doParallel)
-require(parallel)
 require(mlr)
 require(itertools)
 require(forcats)
@@ -35,9 +33,14 @@ library(profvis)
 # Number of days of predictor data files to use for training
 data_days <- 1000
 
+# If true, aim to use every observation
+all_data <- TRUE
+# If true, sample positive cases to value of positive_samples rather than at base rate
+upsample_positive <- FALSE
+# If true, take a maximum of one sample for each observation when upsampling is enabled
+cap_sampling = TRUE
 # Target samples (will pick up extra samples where there are multiple applicable codes)
-#total_samples <- 1000000
-total_samples <- 10000
+total_samples <- 100000
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14
@@ -50,8 +53,7 @@ min_count <- 100
 delta_days <- c(14)
 #delta_days = c(1, 2)
 
-# If true, take a maximum of one sample for each observation
-cap_sampling = TRUE
+
 
 deltas <- TRUE
 
@@ -70,11 +72,9 @@ models= c(
 parallel=TRUE
 #parallel=FALSE
 
-# If true, sample positive cases to value of positive_samples rather than at base rate
-upsample_positive <- TRUE
 
-# Total samples for SC code instances
-positive_samples <- total_samples / 2
+# If upsampling is enabled, SC code instances will constitute at least this fraction of samples
+positive_sample_fraction <- 0.5
 
 
 # Specify target codes. Note: prediction is based on a <code>_<subcode> label, currently we don't filter on subcode.
@@ -140,9 +140,14 @@ require(profvis)
 
 counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, min_count, cap_sampling, parallel=parallel)
 print(counts$getEligibleCounts())
-counts$setTargetTotal(total_samples)
-counts$setTargetPositive(positive_samples)
+if(all_data) {
+  counts$setTargetTotal(counts$getTotal())
+} else {
+  counts$setTargetTotal(total_samples)
+}
+counts$setTargetPositiveFraction(positive_sample_fraction)
 counts$setUpsamplePositive(upsample_positive)
+
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
@@ -167,30 +172,33 @@ unique_val_counts <- sapply(predictors_all, function(c) length(unique(c)))
 # Drop predictors with one or more unique values
 predictors <- predictors_all[,unique_val_counts > 1]
 
+###############################################################################
+# Get labels for codes that meet the required threshold for instances
+################################################################################
+
+used_labels <- keys(counts$getEligibleCounts())
+used_labels <- used_labels[used_labels!="0"]
 
 ################################################################################
 # Add predictors for historical SC codes
 ################################################################################
 
-serial_to_codes <- counts$getSerialToCodes()
+serial_to_codes <- counts$getSerialToEligibleCodes()
 
+# Get the last instance of each SC code (works due to uniqueBy returning the last matching value)
 getPreviousCodesForRow <- function(row) {
-  getMatchingCodesBefore(serial_to_codes[[row$Serial]], row[,date_field])
+  cs <- getMatchingCodesBefore(serial_to_codes[[row$Serial]], row[,date_field])
+  sorted <- sortBy(cs, function(c) c$OCCUR_DATE)
+  res <- uniqueBy(cs, function(c) codeToLabel(c))
+  return(res)
 }
 
 # Pass in only required values for efficiency
-previous_code_sets <- lapply(
+previous_code_sets_unique <- plapply(
   splitDataFrame(predictors[,c("Serial", date_field)]),
-  getPreviousCodesForRow
+  getPreviousCodesForRow,
+  parallel=parallel
 )
-
-# Get the last instance of each SC code (works due to uniqueBy returning the last matching value)
-previous_code_sets_sorted <- lapply(
-  previous_code_sets,
-  function(cs) sortBy(cs, function(c) c$OCCUR_DATE)
-)
-previous_code_sets_unique <- lapply(previous_code_sets_sorted, function(cs) uniqueBy(cs, function(c) codeToLabel(c)))
-
 
 index_to_hist_sc <- function(i, default_delta=10000) {
   code_set <- previous_code_sets_unique[[i]]
@@ -237,7 +245,8 @@ getMatchingCodesForRow <- function(row) {
 }
 
 # Pass in only required values for efficiency
-matching_code_sets <- lapply(
+# TODO: only evaluate for serials already in serial_to_codes
+matching_code_sets <- plapply(
   splitDataFrame(predictors[,c("Serial", date_field)]),
   getMatchingCodesForRow
 )
@@ -250,16 +259,9 @@ matching_code_sets_sorted <- lapply(
 matching_code_sets_unique <- lapply(matching_code_sets_sorted, function(cs) uniqueBy(cs, function(c) codeToLabel(c)))
 
 # Summarize code counts for final sampling
-final_codes <- lapply(unlist(matching_code_sets_unique, recursive=FALSE), function(c) codeToLabel(c))
-final_counts <- sort(table(unlist(final_codes)), decreasing=TRUE)
-print(paste(nrow(predictors), "total observations"))
-print("Sample counts for SC codes:")
-print(final_counts)
-
-# Get labels for codes that meet the required threshold for instances
-used_labels <- keys(counts$getEligibleCounts())
-used_labels <- used_labels[used_labels!="0"]
-
+# final_codes <- lapply(unlist(matching_code_sets_unique, recursive=FALSE), function(c) codeToLabel(c))
+# final_counts <- sort(table(unlist(final_codes)), decreasing=TRUE)
+# final_control_count <- length(filterBy(matching_code_sets_unique, function(cs) length(cs)==0))
 
 # Calculate responses
 code_set_to_labels <- function(code_set) {
@@ -272,6 +274,23 @@ code_set_to_labels <- function(code_set) {
 responses_parts <- plapply(matching_code_sets_unique, code_set_to_labels, parallel=parallel)
 responses <-bindRowsForgiving(responses_parts)
 colnames(responses) <- used_labels
+
+
+# Stats for dataset
+print(paste(nrow(predictors), "total observations"))
+
+responsesToPositiveCounts <- function(responses) {sapply(responses, sum)}
+responsesToControlCount <- function(responses) {sum(apply(responses, 1, Negate(any)))}
+responsesToCounts <- function(responses) {
+  counts <- responsesToPositiveCounts(responses)
+  counts[["0"]] <- responsesToControlCount(responses)
+  return(counts)
+}
+
+print("Observation counts for SC codes:")
+print(responsesToCounts(responses))
+
+
 
 default_frac <- .75 
 # For reference only, will encourage memorizing cases
@@ -331,7 +350,8 @@ if(split_type == "timeSplit") {
 
 replace_na<-function(data){
   temp <- as.data.frame(data)
-  temp[is.na(temp)]<-0
+  # Using an extreme value works well with decision tree methods as it is readily excluded without affecting the normal range
+  temp[is.na(temp)]<- .Machine$integer.max / 2
   return(temp)
 }
 
@@ -381,29 +401,26 @@ test_data <- data[test_vector,]
 train_task <- makeMultilabelTask(data = train_data, target = unlist(label_names))
 test_task <- makeMultilabelTask(data = test_data, target = unlist(label_names))
 
-# Calculate weights such that each positive class has .5/n_positive_classes, with the remaining half allocated to control cases.
+# Calculate weights such that each positive class has approximately .5/n_positive_classes, with the remaining half allocated to control cases.
 # Calculate target counts for each class
-sample_targets <- hash()
-for(k in keys(counts$getEligibleCounts())) {
-  sample_targets[[k]] <- counts$getEligibleCounts()[[k]] * counts$getSamplingFrequencies()[[k]]
-}
-sample_target_total <- sum(values(sample_targets))
-n_positive_classes <- length(keys(sample_targets)) -1
-positive_class_share <- 2 / n_positive_classes
-control_class_share <- 1
 
 train_target <- getTaskTargets(train_task)
+train_counts <- responsesToCounts(train_target)
+n_positive <- sum(responsesToPositiveCounts(train_target))
+positive_class_share <- 1 / ncol(responses)
+control_class_share <- 1
+
 n_train_samples <- nrow(train_data)
 weights <- list()
 for(i in 1:nrow(train_target)) {
   row <- train_target[i,]
-  # Default to negative class weight
-  weight <- control_class_share / sample_targets[["0"]]
+  # Default to control weight
+  weight <- control_class_share / train_counts[["0"]]
   # Take the maximum class weight if a class is positive
   if(any(unlist(row))) {
-    for(k in keys(sample_targets)) {
+    for(k in names(train_counts)) {
       if(k!="0" && row[,make.names(k)]) {
-        weight <- max(weight, positive_class_share / sample_targets[[k]])
+        weight <- max(weight, positive_class_share / train_counts[[k]])
       }
     }
   }
@@ -426,6 +443,11 @@ lrn <- setPredictType(lrn, "prob")
 mod <- mlr::train(lrn, train_task, weights=weights)
 #mod <- mlr::train(lrn, train_task)
 pred <- predict(mod, test_task)
+
+
+################################################################################
+# Evaluate performance
+################################################################################
 
 mlr::performance(pred, measure <- list(multilabel.hamloss, multilabel.subset01, multilabel.f1))
 perf <- getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
@@ -477,67 +499,8 @@ plot_prec <- function(prob, truth) {
   ROCR::plot(roc_perf, colorize=TRUE)
 }
 
-
 # Plot ROC and precision for all submodels
 #plot_roc(p[,to_graph], r[,to_graph])
 
 # Plot precision vs recall for allsubmodels
 plot_prec(p[,to_graph], r[,to_graph])
-
-
-# 
-# ################################################################################
-# # Model w/ SMOTE
-# ################################################################################
-# 
-# require(mlr)
-# 
-# importance <- TRUE
-# 
-# n=1
-# response <- responses[, n, drop=FALSE]
-# label <- used_labels[[n]]
-# 
-# data <- bind_cols(predictors_eligible, response)
-# 
-# # Make R-standard names
-# label_name <- make.names(label)
-# predictor_names <- make.names(colnames(data))
-# 
-# colnames(data) <- predictor_names
-# 
-# train_data <- data[train_vector,]
-# test_data <- data[test_vector,]
-# 
-# train_task <- makeClassifTask(data = train_data, target = unlist(label_name))
-# test_task <- makeClassifTask(data = test_data, target = unlist(label_name))
-# 
-# train_task_smote <- smote(train_task, 10)
-# 
-# lrn <- makeLearner("classif.ranger", par.vals=list(
-#   num.threads = detectCores() - 1,
-#   num.trees = 2000,
-#   importance = 'impurity'
-#   #sample.fraction = 0.2
-# ))
-# lrn <- setPredictType(lrn, "prob")
-# 
-# 
-# 
-# mod <- mlr::train(lrn, train_task_smote)
-# pred <- predict(mod, test_task)
-# 
-# print(label)
-# roc <- generateThreshVsPerfData(pred, (list(fpr, tpr)))
-# plotROCCurves(roc)
-# 
-# 
-# mod <- mlr::train(lrn, train_task_smote)
-# pred <- predict(mod, test_task)
-# 
-# print(label)
-# roc <- generateThreshVsPerfData(pred, (list(fpr, tpr)))
-# plotROCCurves(roc)
-# 
-# # nu <- sapply(predictors, function(c) length(unique(c)))
-# # View(nu)
