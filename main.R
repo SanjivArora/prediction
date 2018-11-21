@@ -34,13 +34,13 @@ library(profvis)
 data_days <- 1000
 
 # If true, aim to use every observation
-all_data <- FALSE
+all_data <- TRUE
 # If true, sample positive cases to value of positive_samples rather than at base rate
 upsample_positive <- FALSE
 # If true, take a maximum of one sample for each observation when upsampling is enabled
 cap_sampling = TRUE
 # Target samples (will pick up extra samples where there are multiple applicable codes)
-total_samples <- 300000
+total_samples <- 50000
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14
@@ -69,9 +69,10 @@ models= c(
   'E16',
   'E17',
   'E18',
-  'E19',
-  'G69',
-  'G70'
+  'E19'
+  # Exclude G models for now as counter names and SC subcodes differ 
+  #'G69',
+  #'G70'
   # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
   #'G71',
   #'G73'
@@ -202,18 +203,21 @@ getPreviousCodesForRow <- function(row) {
 }
 
 # Pass in only required values for efficiency
+getPreviousCodesForIndex <- function(i) {
+  getPreviousCodesForRow(predictors[i,c("Serial", date_field)])
+}
+
 previous_code_sets_unique <- plapply(
-  splitDataFrame(predictors[,c("Serial", date_field)]),
-  getPreviousCodesForRow,
+  1:nrow(predictors),
+  getPreviousCodesForIndex,
   parallel=parallel
 )
 
 index_to_hist_sc <- function(i, default_delta=10000) {
   code_set <- previous_code_sets_unique[[i]]
-  predictor_row <- predictors[i,]
   cs <- groupBy(code_set, function(c) codeToLabel(c))
   part <- list()
-  predictor_date <- predictor_row[,date_field]
+  predictor_date <- predictors[i, date_field]
   for(label in used_labels) {
     if(has.key(label, cs)) {
       c <- cs[[label]][[1]]
@@ -359,7 +363,8 @@ if(split_type == "timeSplit") {
 replace_na<-function(data){
   temp <- as.data.frame(data)
   # Using an extreme value works well with decision tree methods as it is readily excluded without affecting the normal range
-  temp[is.na(temp)]<- .Machine$integer.max / 2
+  # Divide by 4 to avoid integer overflow in later processing
+  temp[is.na(temp)]<- .Machine$integer.max / 4
   return(temp)
 }
 
