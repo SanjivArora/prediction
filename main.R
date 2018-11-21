@@ -34,20 +34,20 @@ library(profvis)
 data_days <- 1000
 
 # If true, aim to use every observation
-all_data <- TRUE
+all_data <- FALSE
 # If true, sample positive cases to value of positive_samples rather than at base rate
 upsample_positive <- FALSE
 # If true, take a maximum of one sample for each observation when upsampling is enabled
 cap_sampling = TRUE
 # Target samples (will pick up extra samples where there are multiple applicable codes)
-total_samples <- 100000
+total_samples <- 300000
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14
 #sc_code_days=2
 
 # Minimum number of sample-days to predict a label
-min_count <- 100
+min_count <- 300
 
 # Offsets to use for generating deltas for numerical data
 delta_days <- c(14)
@@ -65,8 +65,16 @@ regions = c(
 )
 
 models= c(
+  'E15',
   'E16',
-  'E15'
+  'E17',
+  'E18',
+  'E19',
+  'G69',
+  'G70'
+  # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
+  #'G71',
+  #'G73'
 )
 
 parallel=TRUE
@@ -94,7 +102,7 @@ for(c in target_codes) {
   target_code_hash[[as.character(c)]] <- TRUE
 }
 
-date_field <- "GetDate"
+date_field <- "FileDate"
 
 ################################################################################
 # Feature Names
@@ -371,7 +379,7 @@ take_eligible <- function(dataset, string_factors=TRUE) {
   res[,factor_cols] <- lapply(res[,factor_cols], function(x) fct_explicit_na(x, na_level="None"))
   # Exclude dates
   res <- res[, !unlist(lapply(res, is.Date))]
-  # NA -> 0
+  # Replace NAs with default numerical value
   res <- replace_na(res)
   return(res)
 }
@@ -411,8 +419,8 @@ positive_class_share <- 1 / ncol(responses)
 control_class_share <- 1
 
 n_train_samples <- nrow(train_data)
-weights <- list()
-for(i in 1:nrow(train_target)) {
+
+weightForIndex <- function(i) {
   row <- train_target[i,]
   # Default to control weight
   weight <- control_class_share / train_counts[["0"]]
@@ -424,8 +432,10 @@ for(i in 1:nrow(train_target)) {
       }
     }
   }
-  weights <- append(weights, weight)
+  return(weight)
 }
+  
+weights <- plapply(1:nrow(train_target), weightForIndex)
 weights <- unlist(weights)
 
 lrn <- makeLearner("classif.ranger", par.vals=list(

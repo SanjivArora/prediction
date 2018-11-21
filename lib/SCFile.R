@@ -1,3 +1,5 @@
+require(anytime)
+
 source('lib/DataFile.R')
   
   SCFile <- setRefClass(
@@ -27,7 +29,7 @@ source('lib/DataFile.R')
             SC_CD = as.character(SC_CD),
             SC_SERIAL_CD = as.character(SC_SERIAL_CD),
             SC_TOTAL = as.numeric(SC_TOTAL),
-            OCCUR_DATE = as.Date(OCCUR_DATE),
+            OCCUR_DATE = anytime::anydate(OCCUR_DATE),
             #    #TODO: merge date and time to datetime value
             OCCUR_TIME = as.character(OCCUR_TIME),
             OCCUR_DETAIL = as.character(OCCUR_DETAIL)

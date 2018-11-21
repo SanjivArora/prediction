@@ -52,7 +52,7 @@ getMatchingCodesBy <- function(codes, f) {
 getMatchingCodes <- function(codes, date, sc_days) {
   f <- function(c) {
     delta <- c$OCCUR_DATE - date
-    in_window <- delta >= 0 && delta <= sc_days
+    in_window <- delta > 0 && delta <= sc_days
     return(in_window)
   }
   res <- getMatchingCodesBy(codes, f)
