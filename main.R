@@ -13,7 +13,6 @@ debugSource("lib/MemoiseCache.R")
 debugSource("lib/Visualization.R")
 debugSource("lib/Feature.R")
 debugSource("lib/FeatureSelection.R")
-debugSource("lib/FeatureNames.R")
 debugSource("lib/Feature.R")
 debugSource("lib/SCFile.R")
 debugSource("lib/Sampling.R")
@@ -34,9 +33,13 @@ library(profvis)
 data_days <- 1000
 
 # If true, aim to use every observation
-all_data <- TRUE
+all_data <- FALSE
 # If true, sample positive cases to value of positive_samples rather than at base rate
-upsample_positive <- FALSE
+upsample_positive <- TRUE
+# Override if all_data is true
+if(all_data) {
+  upsample_positive <- FALSE
+}
 # If true, take a maximum of one sample for each observation when upsampling is enabled
 cap_sampling = TRUE
 # Target samples (will pick up extra samples where there are multiple applicable codes)
@@ -55,7 +58,7 @@ delta_days <- c(14)
 
 
 
-deltas <- TRUE
+deltas <- FALSE
 
 # Drop non-delta numerical values
 only_deltas <- FALSE
@@ -105,19 +108,18 @@ for(c in target_codes) {
 
 date_field <- "FileDate"
 
+feature_files <- c('top.txt')
+selected_features <- TRUE
+
 ################################################################################
 # Feature Names
 ################################################################################
 
-# fs <- append(
-#   read_features(features),
-#   read_daily_features(daily_features)
-# )
-
-# TODO: Investigate apparent effect of feature order on RandomTree implementation
-#fs<-sample(fs)
-
-
+if(selected_features) {
+  fs <- readFeatures(feature_files)
+} else {
+  fs <- FALSE
+}
 
 ################################################################################
 # SC Codes
@@ -147,7 +149,7 @@ data_files <- unlist(file_sets[1:data_days])
 require(profvis)
 #profvis({
 
-counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, min_count, cap_sampling, parallel=parallel)
+counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, min_count, cap_sampling, features=fs, parallel=parallel)
 print(counts$getEligibleCounts())
 if(all_data) {
   counts$setTargetTotal(counts$getTotal())
@@ -166,12 +168,11 @@ predictors_all <- dataFilesToDataset(
   delta_days=delta_days,
   deltas=deltas,
   only_deltas=only_deltas,
+  features=fs,
   parallel=parallel
 )
 #View(predictors[1:5,1:5])
 #})
-
-#predictors <- predictors %>% mutate_if(sapply(predictors, is.factor), as.character)
 
 ################################################################################
 # Eliminate predictors with a single unique value
@@ -252,15 +253,16 @@ predictors<-predictors[sample(nrow(predictors)),]
 predictors<-predictors[,sample(ncol(predictors))]
 
 
-getMatchingCodesForRow <- function(row) {
+getMatchingCodesForIndex <- function(i) {
+  row <- predictors[i, c("Serial", date_field)]
   getMatchingCodes(serial_to_codes[[row$Serial]], row[,date_field], counts$getSCDays())
 }
 
 # Pass in only required values for efficiency
 # TODO: only evaluate for serials already in serial_to_codes
 matching_code_sets <- plapply(
-  splitDataFrame(predictors[,c("Serial", date_field)]),
-  getMatchingCodesForRow
+  1:nrow(predictors),
+  getMatchingCodesForIndex
 )
 
 # Get the first instance of each SC code (works due to uniqueBy returning the last matching value)
@@ -519,3 +521,11 @@ plot_prec <- function(prob, truth) {
 
 # Plot precision vs recall for allsubmodels
 plot_prec(p[,to_graph], r[,to_graph])
+
+
+################################################################################
+# Save top features
+################################################################################
+
+# top_features <- topMultilabelModelFeatures(mod)
+# writeFeatures(row.names(top_features), "top.txt")

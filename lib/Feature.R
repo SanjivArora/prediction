@@ -1,31 +1,36 @@
 config_dir <- "./config"
 
-read_feature <- function(name) {
+readFeaturesSingle <- function(name) {
   path <- file.path(config_dir, name)
   f <- file(path, open="r")
   lines <- readLines(f)
+  close(f)
   trimmed <- lapply(lines, trimws)
   result <- make.names(trimmed)
   return(result)
 }
 
-read_features <- function(names) {
-  l <- lapply(names, read_feature)
-  features <- reduce(l, append, .init=list())
+readFeatures <- function(names) {
+  l <- lapply(names, readFeaturesSingle)
+  features <- Reduce(append, l, list())
   return(features)
 }
 
-read_daily_features <- function(names) {
-  features <- read_features(names)
-  if(!is_empty(features)) {
-    features <- paste(features, "_daily", sep="")
-  }
-  return(features)
-}
-
-write_features <- function(features, name="auto_write.txt") {
+writeFeatures <- function(features, name="auto_write.txt") {
   path <- file.path(config_dir, name)
   f <- file(path, open='w')
   write(features, f)
   close(f)
+}
+
+canonicalFeatureName <- function(name) {
+  # Strip leading and trailing white space
+  x <- trimws(name)
+  # Make an R-compliant name
+  x <- make.names(x)
+  # Replace all isntances of multiple periods with single periods
+  x <- gsub('\\.{2,}', '\\.', perl=TRUE, x)
+  x <- gsub('^\\.', '', perl=TRUE, x)
+  x <- gsub('\\.$', '', perl=TRUE, x)
+  return(x)
 }

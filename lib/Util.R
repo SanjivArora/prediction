@@ -203,3 +203,11 @@ mapHash <- function(h, f) {
   }
   return(res)
 }
+
+equal <- function(l) {
+  if(length(l)==0) {
+    return(TRUE)
+  }
+  res <- lapply(l, function(x) identical(l[[1]], x)) %>% unlist %>% all
+  return(res)
+}

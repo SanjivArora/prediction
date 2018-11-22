@@ -1,27 +1,52 @@
-require('Boruta')
-require(plotly)
+require(mlr)
+require(hash)
+require(testit)
+require(magrittr)
 
+source('lib/Util.R')
 
-feature_selection <- function(dataset, response, n=300) {
-  b<-Boruta(dataset, response)
-  
-  ih <- b[['ImpHistory']]
-  # Remove shadow metadata
-  ih_relevant <- ih[,1:(ncol(ih)-3)]
-  ih_noinf <- ih_relevant[,which(colMeans(is.finite(ih_relevant))==1)]
-  col_order <- order(colMedians(ih_noinf))
-  # Select up to n features, ascending order
-  col_order <- tail(col_order, n)
-  ordered <- ih_noinf[,col_order]
-  columns <- map(1:ncol(ordered), function(x) ordered[,x])
-  feature_names <- colnames(ordered)
-  
-  p <- plot_ly(type='box')
-  for(i in 1:length(feature_names)) {
-    p <- add_trace(p, y=columns[[i]], name=feature_names[[i]])
+# Extract feature importance dataframes for MLR multilabel model
+# Return a named list where values are single column dataframes where rows are named for features
+getMultilabelFeatureImportance <- function(mod) {
+  submodels <- mod$learner.model$next.model
+  res <- list()
+  for(l in names(submodels)) {
+    x <- getFeatureImportance(submodels[[l]])$res
+    x <- t(x)
+    x <- x[order(x, decreasing=TRUE),]
+    res[[l]] <- as.data.frame(x)
   }
-  p<-hide_legend(p)
-  print(p)
-  
-  return(feature_names)
+  return(res)
+}
+
+# Given a feature importance dataframe, return the names of top features
+topFeatures <- function(fs, frac=0.1) {
+  ord <- order(fs, decreasing=TRUE)
+  sorted <- fs[ord,]
+  n<-ceiling(frac * length(sorted))
+  top <- sorted[1:n]
+  top <- as.data.frame(top)
+  row.names(top) <- row.names(fs)[ord][1:n]
+  return(top)
+}
+
+# Merge feature importance lists into a single dataframe by calculating the total importance value for each feature
+featureImportanceSums <- function(fs) {
+  fs <- unname(fs)
+  n <- lapply(fs, function(x) unlist(row.names(x)))
+  # Verify all feature lists have the same names
+  assert(lapply(n, sort) %>% equal)
+  ordered <- lapply(fs, function(x) x[n[[1]],])
+  all <- as.data.frame(ordered)
+  sums <- base::apply(all, 1, sum)
+  sums <- as.data.frame(sums)
+  ord <- order(sums, decreasing=TRUE)
+  res <- sums[ord,]
+  res <- as.data.frame(res)
+  row.names(res) <- n[[1]][ord]
+  return(res)
+}
+
+topMultilabelModelFeatures <- function(mod, frac=0.1) {
+  mod %>% getMultilabelFeatureImportance %>% featureImportanceSums %>% topFeatures(frac)
 }

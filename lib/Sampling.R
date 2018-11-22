@@ -235,8 +235,8 @@ InstanceCounter <- setRefClass(
   )
 )
 
-dailyFileSetsToDataframe <- function(daily_file_sets) {
-  parts <- lapply(daily_file_sets, function(fs) dataFilesToDataframe(fs))
+dailyFileSetsToDataframe <- function(daily_file_sets, features=features) {
+  parts <- lapply(daily_file_sets, function(fs) dataFilesToDataframe(fs, features=features))
   df <- bindRowsForgiving(parts)
   # Set row names to Serial
   row.names(df) <- unlist(df[,'Serial'])
@@ -244,13 +244,13 @@ dailyFileSetsToDataframe <- function(daily_file_sets) {
 }
 
 # Call function for each day with the date and a hash mapping date strings to valid datafile sets. Run this in parallel over models and sources.
-visitPredictorDataframes <- function(data_files, required_sources, f, parallel=FALSE) {
+visitPredictorDataframes <- function(data_files, required_sources, f, features=FALSE, parallel=FALSE) {
   daily_file_sets <- getDailyFileSetsHash(data_files, required_sources)
   sampling_log$debug(paste("Visiting", length(daily_file_sets), "daily data frames"))
   visit <- function(date_string) {
     file_sets <- daily_file_sets[[date_string]]
     date <- as.Date(date_string)
-    df <- dailyFileSetsToDataframe(file_sets)
+    df <- dailyFileSetsToDataframe(file_sets, features=features)
     res <- f(df, date, daily_file_sets)
     return(res)
   }
@@ -259,7 +259,14 @@ visitPredictorDataframes <- function(data_files, required_sources, f, parallel=F
   return(res)
 }
 
-dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=14, min_count=10, cap_sampling=TRUE, parallel=TRUE) {
+dataFilesToCounter <- function(data_files,
+                               required_sources,
+                               sc_codes,
+                               sc_days=14,
+                               min_count=10,
+                               cap_sampling=TRUE,
+                               features=FALSE,
+                               parallel=TRUE) {
   if(cap_sampling) {
     cap_freq <- 1
   } else {
@@ -277,6 +284,7 @@ dataFilesToCounter <- function(data_files, required_sources, sc_codes, sc_days=1
       counter$processDay(df, date)
       return(counter)
     },
+    features=features,
     parallel=parallel
   )
   if(parallel) {
@@ -415,11 +423,21 @@ sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,
   return(res)
 }
 
-dataFilesToDataset <- function(data_files, required_sources, sc_codes, counts, sc_days=14, delta_days=c(1, 3, 7), deltas=TRUE, only_deltas=TRUE, parallel=TRUE) {
+dataFilesToDataset <- function(data_files,
+                               required_sources,
+                               sc_codes,
+                               counts,
+                               sc_days=14,
+                               delta_days=c(1, 3, 7),
+                               deltas=TRUE,
+                               only_deltas=TRUE,
+                               features=FALSE,
+                               parallel=TRUE) {
   parts <- visitPredictorDataframes(
     data_files,
     required_sources,
     function(df, date, daily_file_sets) sampleDataFrame(df, date, counts, daily_file_sets, delta_days, deltas, only_deltas),
+    features=features,
     parallel=parallel
   )
   # Filter out results for days without required data to generate deltas

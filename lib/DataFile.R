@@ -4,6 +4,7 @@ require(R.utils)
 
 source('lib/Util.R')
 source('lib/Parallel.R')
+source('lib/Feature.R')
 
 base_path="~/data/"
 timezone="UTC"
@@ -38,7 +39,7 @@ DataFile <- setRefClass("DataFile",
     },
     getDate = function() {.self$test},
     getFullPath = function() {joinPaths(base_path, path)},
-    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA) {
+    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE) {
       # Use as.is to disable representing values as factors
       df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=c("","NA"), as.is=TRUE)
       if(is.na(date_field)) {
@@ -88,7 +89,10 @@ DataFile <- setRefClass("DataFile",
       }
       # Set row names to Serial
       row.names(df) <- unlist(df[,'Serial'])
-
+      # Canonicalise names
+      if(rename) {
+        colnames(df) <- lapply(colnames(df), canonicalFeatureName)
+      }
       return(df)
     },
     # Accept a path to a data file and return list of strings for region, model, data type, date
@@ -108,8 +112,7 @@ DataFile <- setRefClass("DataFile",
 # Reference classes have no supprt for class or static methods, so define functions that notionally belong to the class but not the instances here 
 
 # Class method to return merged dataframe from list of instances. Merge on Serial and FileDate and set row names to serial numbers.
-dataFilesToDataframe <- function(instances, parallel=TRUE) {
-  
+dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
   dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel=parallel)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
@@ -119,6 +122,13 @@ dataFilesToDataframe <- function(instances, parallel=TRUE) {
     }
   }
   row.names(res) <- unlist(res[,'Serial'])
+  if(!isFALSE(features)) {
+    # TODO: handle deltas
+    additional <- c("Serial", "FileDate", "GetDate", "ChargeCounterDate")
+    features <- append(fs, additional)
+    fs <- intersect(colnames(res), features)
+    res <- res[,unlist(fs)]
+  }
   return(res)
 }
 
