@@ -256,6 +256,7 @@ visitPredictorDataframes <- function(data_files, required_sources, f, features=F
   }
   res <- plapply(keys(daily_file_sets), visit, parallel=parallel)
   stopifnot(length(keys(daily_file_sets))==length(res))
+  sampling_log$debug("Finished visiting dataframes")
   return(res)
 }
 

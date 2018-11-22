@@ -156,7 +156,11 @@ toIntegerStochastic <- function(x) {
 
 # Deterministically select entire dataset if length(x) <= size, and repeate until length(x) > size.
 # At this point sample randomly without replacement, allowing non-integral size such that the average size is correct over repeated applications.
+# If x is zero length, return a zero length list.
 stochasticSelection <- function(x, size) {
+  if(length(x)==0) {
+    return(list())
+  }
   selected <- list()
   while(size >= length(x)) {
     selected <- append(selected, x)

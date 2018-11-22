@@ -32,11 +32,11 @@ library(profvis)
 # Number of days of predictor data files to use for training
 data_days <- 1000
 
-# If true, aim to use every observation
-all_data <- FALSE
+# If true, aim to use every observation (overrides total_samples)
+all_data <- TRUE
 # If true, sample positive cases to value of positive_samples rather than at base rate
 upsample_positive <- TRUE
-# Override if all_data is true
+# Ignore upsample_positives if all_data is true - not required as we have training weights
 if(all_data) {
   upsample_positive <- FALSE
 }
