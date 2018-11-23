@@ -3,7 +3,7 @@ require(memoise)
 require(mlr)
 require(itertools)
 require(forcats)
-
+require(magrittr)
 
 # MemoiseCache must be loaded first
 debugSource("lib/Parallel.R")
@@ -20,11 +20,12 @@ debugSource("lib/Logging.R")
 debugSource("lib/DataFile.R")
 debugSource("lib/Results.R")
 
-
 #sources=c('Count', 'PMCount', 'Jam')
 sources=c('PMCount', 'Count') 
 #sources=c('PMCount') 
 
+feature_files <- c('top.txt')
+selected_features <- FALSE
 
 library(profvis)
 #profvis({
@@ -35,7 +36,7 @@ data_days <- 1000
 # If true, aim to use every observation (overrides total_samples)
 all_data <- TRUE
 # If true, sample positive cases to value of positive_samples rather than at base rate
-upsample_positive <- TRUE
+upsample_positive <- FALSE
 # Ignore upsample_positives if all_data is true - not required as we have training weights
 if(all_data) {
   upsample_positive <- FALSE
@@ -50,14 +51,16 @@ sc_code_days <- 14
 #sc_code_days=2
 
 # Minimum number of sample-days to predict a label
-min_count <- 300
+min_count <- 500
 
 # Offsets to use for generating deltas for numerical data
 delta_days <- c(14)
 #delta_days = c(1, 2)
 
+# Fraction of dataset to use for training (less SC overlap window)
+training_frac = 0.9
 
-
+historical_sc_predictors <- TRUE
 deltas <- FALSE
 
 # Drop non-delta numerical values
@@ -84,18 +87,17 @@ models= c(
 parallel=TRUE
 #parallel=FALSE
 
-
 # If upsampling is enabled, SC code instances will constitute at least this fraction of samples
 positive_sample_fraction <- 0.5
 
-
 # Specify target codes. Note: prediction is based on a <code>_<subcode> label, currently we don't filter on subcode.
-target_codes <- list(
-  200:299, # "C01 NOT FUNCTION AT ALL"
-  600:699, # "C01 NOT FUNCTION AT ALL"
-  800:899, # "C01 NOT FUNCTION AT ALL
-  900:999 # "C01 NOT FUNCTION AT ALL"  
-)
+# target_codes <- list(
+#   200:299, # "C01 NOT FUNCTION AT ALL"
+#   600:699, # "C01 NOT FUNCTION AT ALL"
+#   800:899, # "C01 NOT FUNCTION AT ALL
+#   900:999 # "C01 NOT FUNCTION AT ALL"  
+# )
+target_codes <- list(1:999)
 target_codes <- Reduce(append, target_codes)
 
 # Exclude 899
@@ -106,10 +108,16 @@ for(c in target_codes) {
   target_code_hash[[as.character(c)]] <- TRUE
 }
 
-date_field <- "FileDate"
+date_field <- "GetDate"
 
-feature_files <- c('top.txt')
-selected_features <- TRUE
+# Wait an additional period for SC code data as up to date information for a machine, and the typical lag seems to be a few days.
+sc_data_buffer = 4
+
+# Number of trees to use for random forest
+#ntree = 1000
+ntree = 500
+
+relative_replacement_dates <- TRUE
 
 ################################################################################
 # Feature Names
@@ -127,8 +135,10 @@ if(selected_features) {
 
 codes_all <- codesForRegionsAndModels(regions, models, parallel)
 # Filter SC codes to target codes
-code_indices <- plapply(splitDataFrame(codes_all), function(c) has.key(c$SC_CD, target_code_hash))
-codes <- codes_all[unlist(code_indices),]
+code_dups <- duplicated(codes_all[,c('Serial', 'SC_CD', 'SC_SERIAL_CD')])
+codes_unique <- codes_all[!code_dups,]
+code_indices <- plapply(splitDataFrame(codes_unique), function(c) has.key(c$SC_CD, target_code_hash))
+codes <- codes_unique[unlist(code_indices),]
 
 ################################################################################
 # Sample dataset
@@ -141,8 +151,14 @@ sc_files <- filterBy(all_data_files, function(f) f$source=="SC")
 sc_files <- sortBy(sc_files, function(f) f$date)
 stopifnot(length(sc_files) > 0)
 latest_sc_file_date <- as.Date(last(sortBy(sc_files, function(f) f$date))$date)
-latest_data_file_date <- latest_sc_file_date - sc_code_days
-filtered_data_files <- filterBy(all_data_files, function(f) as.Date(f$date) < latest_data_file_date)
+latest_data_file_date <- latest_sc_file_date - sc_code_days - sc_data_buffer
+filtered_data_files <- filterBy(
+  all_data_files,
+  function(f) {
+    as.Date(f$date) < latest_data_file_date &&
+      f$model %in% models
+  }
+)
 file_sets <- getDailyFileSets(filtered_data_files, sources)
 data_files <- unlist(file_sets[1:data_days])
 
@@ -171,16 +187,47 @@ predictors_all <- dataFilesToDataset(
   features=fs,
   parallel=parallel
 )
-#View(predictors[1:5,1:5])
-#})
+predictors <- predictors_all
+
+################################################################################
+# Eliminate predictors where Count and PMCount data are out of sync
+################################################################################
+
+date_fields <- c('GetDate', 'ChargeCounterDate')
+date_vals <- predictors[,date_fields]
+predictors <- predictors[date_vals[,date_fields[[1]]] == date_vals[,date_fields[[2]]],]
+
+################################################################################
+# Eliminate predictors with duplicate GetDate
+################################################################################
+
+dups <- duplicated(predictors[,c('Serial', 'GetDate')])
+predictors <- predictors[!dups,]
 
 ################################################################################
 # Eliminate predictors with a single unique value
 ################################################################################
 
-unique_val_counts <- sapply(predictors_all, function(c) length(unique(c)))
+unique_val_counts <- sapply(predictors, function(c) length(unique(c)))
 # Drop predictors with one or more unique values
-predictors <- predictors_all[,unique_val_counts > 1]
+predictors <- predictors[,unique_val_counts > 1]
+
+################################################################################
+# Convert replacement dates to relative values
+################################################################################
+
+if(relative_replacement_dates) {
+  replacement_date_col_names <- colnames(predictors)
+  replacement_date_cols <- replacement_date_col_names[grep('X.*replacement\\.date', replacement_date_col_names, ignore.case=T)]
+  
+  to_date <- function(x) {as.Date(as.character(x), '%y%m%d') %>% unlist}
+  date_cols <- predictors[,replacement_date_cols]
+  date_cols <- apply(date_cols, 2, to_date)
+  date_cols <- as.data.frame(date_cols)
+  # For some reason R automatically converts the date type to integer
+  date_cols <- as.numeric(predictors[,date_field]) - date_cols
+  predictors[,replacement_date_cols] <- date_cols
+}
 
 ###############################################################################
 # Get labels for codes that meet the required threshold for instances
@@ -195,49 +242,51 @@ used_labels <- used_labels[used_labels!="0"]
 
 serial_to_codes <- counts$getSerialToEligibleCodes()
 
-# Get the last instance of each SC code (works due to uniqueBy returning the last matching value)
-getPreviousCodesForRow <- function(row) {
-  cs <- getMatchingCodesBefore(serial_to_codes[[row$Serial]], row[,date_field])
-  sorted <- sortBy(cs, function(c) c$OCCUR_DATE)
-  res <- uniqueBy(cs, function(c) codeToLabel(c))
-  return(res)
-}
-
-# Pass in only required values for efficiency
-getPreviousCodesForIndex <- function(i) {
-  getPreviousCodesForRow(predictors[i,c("Serial", date_field)])
-}
-
-previous_code_sets_unique <- plapply(
-  1:nrow(predictors),
-  getPreviousCodesForIndex,
-  parallel=parallel
-)
-
-index_to_hist_sc <- function(i, default_delta=10000) {
-  code_set <- previous_code_sets_unique[[i]]
-  cs <- groupBy(code_set, function(c) codeToLabel(c))
-  part <- list()
-  predictor_date <- predictors[i, date_field]
-  for(label in used_labels) {
-    if(has.key(label, cs)) {
-      c <- cs[[label]][[1]]
-      delta <- predictor_date - c$OCCUR_DATE
-    } else {
-      delta <- default_delta
-    }
-    part <- append(part, as.numeric(delta))
+if(historical_sc_predictors) {
+  # Get the last instance of each SC code (works due to uniqueBy returning the last matching value)
+  getPreviousCodesForRow <- function(row) {
+    cs <- getMatchingCodesBefore(serial_to_codes[[row$Serial]], row[,date_field])
+    sorted <- sortBy(cs, function(c) c$OCCUR_DATE)
+    res <- uniqueBy(cs, function(c) codeToLabel(c))
+    return(res)
   }
-  res <- matrix(unlist(part), nrow=1)
-  res <- as.data.frame(res)
-  return(res)
+  
+  # Pass in only required values for efficiency
+  getPreviousCodesForIndex <- function(i) {
+    getPreviousCodesForRow(predictors[i,c("Serial", date_field)])
+  }
+  
+  previous_code_sets_unique <- plapply(
+    1:nrow(predictors),
+    getPreviousCodesForIndex,
+    parallel=parallel
+  )
+  
+  index_to_hist_sc <- function(i, default_delta=10000) {
+    code_set <- previous_code_sets_unique[[i]]
+    cs <- groupBy(code_set, function(c) codeToLabel(c))
+    part <- list()
+    predictor_date <- predictors[i, date_field]
+    for(label in used_labels) {
+      if(has.key(label, cs)) {
+        c <- cs[[label]][[1]]
+        delta <- predictor_date - c$OCCUR_DATE
+      } else {
+        delta <- default_delta
+      }
+      part <- append(part, as.numeric(delta))
+    }
+    res <- matrix(unlist(part), nrow=1)
+    res <- as.data.frame(res)
+    return(res)
+  }
+  
+  hist_sc_predictors_parts <- plapply(1:nrow(predictors), index_to_hist_sc, parallel=parallel)
+  hist_sc_predictors <- bindRowsForgiving(hist_sc_predictors_parts)
+  colnames(hist_sc_predictors) <- paste("days.since.last", used_labels, sep=".")
+  
+  predictors <- cbind(predictors, hist_sc_predictors)
 }
-
-hist_sc_predictors_parts <- plapply(1:nrow(predictors), index_to_hist_sc, parallel=parallel)
-hist_sc_predictors <- bindRowsForgiving(hist_sc_predictors_parts)
-colnames(hist_sc_predictors) <- paste("days.since.last", used_labels, sep=".")
-
-predictors <- cbind(predictors, hist_sc_predictors)
 
 ################################################################################
 # Train and test datasets
@@ -287,8 +336,9 @@ code_set_to_labels <- function(code_set) {
 }
 responses_parts <- plapply(matching_code_sets_unique, code_set_to_labels, parallel=parallel)
 responses <-bindRowsForgiving(responses_parts)
-colnames(responses) <- used_labels
-
+# Make R-standard names
+label_names <- make.names(used_labels)
+colnames(responses) <- label_names
 
 # Stats for dataset
 print(paste(nrow(predictors), "total observations"))
@@ -304,9 +354,7 @@ responsesToCounts <- function(responses) {
 print("Observation counts for SC codes:")
 print(responsesToCounts(responses))
 
-
-
-default_frac <- .75 
+default_frac <- training_frac
 # For reference only, will encourage memorizing cases
 randomSplit <- function(predictors, frac=default_frac) {
   indices <- runif(length(predictors)) <= frac
@@ -323,7 +371,7 @@ serialSplit <- function(predictors, frac=default_frac) {
 
 # Approximate split of samples by time, oldest first.
 timeSplit <- function(predictors, frac=default_frac) {
-  orders <- order(predictors$FileDate)
+  orders <- order(predictors[,date_field])
   newest <- head(orders, floor(length(orders) * (1-frac)))
   res <- rep(TRUE, nrow(predictors))
   res[newest] <- FALSE
@@ -346,17 +394,18 @@ train_vector <- split_vector
 test_vector <- !split_vector
 # If splitting on time, drop sc_code_days worth of data before split so we don't count cases where there is overlap.
 if(split_type == "timeSplit") {
-  print(paste("Dropping", sc_code_days, "days of training data to prevent SC code window overlapping with test set"))
-  predictor_dates <- as.Date(predictors$FileDate)
+  # Drop an additional period to allow for non-exact windows
+  total_days_to_drop <- sc_code_days + 4
+  print(paste("Dropping", total_days_to_drop, "days of training data to prevent SC code window overlapping with test set"))
+  predictor_dates <- as.Date(predictors[,date_field])
   train_dates <- predictor_dates[train_vector]
   latest <- sort(train_dates, decreasing=TRUE)[[1]]
-  latest_eligible <- latest - sc_code_days
+  latest_eligible <- latest - total_days_to_drop
   train_vector <- unlist(lapply(predictor_dates, function(d) d <= latest_eligible)) & train_vector
   if(sum(train_vector) == 0) {
     stop("No eligible training data")
   }
 }
-
 
 ################################################################################
 # Restrict to valid numeric values
@@ -370,7 +419,7 @@ replace_na<-function(data){
   return(temp)
 }
 
-take_eligible <- function(dataset, string_factors=TRUE) {
+take_eligible <- function(dataset, string_factors=FALSE) {
   res <- dataset
   char_cols <- unlist(lapply(res, is.character))
   if(string_factors) {
@@ -404,14 +453,11 @@ importance <- TRUE
 
 data <- bind_cols(predictors_eligible, responses)
 
-# Make R-standard names
-label_names <- make.names(used_labels)
-predictor_names <- make.names(colnames(data))
-
-colnames(data) <- predictor_names
-
 train_data <- data[train_vector,]
 test_data <- data[test_vector,]
+
+# Store full form test predictors for later use (serial and date, etc.)
+test_pred <- predictors[test_vector,]
 
 train_task <- makeMultilabelTask(data = train_data, target = unlist(label_names))
 test_task <- makeMultilabelTask(data = test_data, target = unlist(label_names))
@@ -441,13 +487,13 @@ weightForIndex <- function(i) {
   }
   return(weight)
 }
-  
+
 weights <- plapply(1:nrow(train_target), weightForIndex)
 weights <- unlist(weights)
 
 lrn <- makeLearner("classif.ranger", par.vals=list(
   num.threads = detectCores() - 1,
-  num.trees = 2000,
+  num.trees = ntree,
   importance = 'impurity'
   #sample.fraction = 0.2
 ))
@@ -456,11 +502,24 @@ lrn <- makeMultilabelBinaryRelevanceWrapper(lrn)
 lrn <- setPredictType(lrn, "prob")
 #lrn <- setPredictType(lrn, "response")
 
-
 mod <- mlr::train(lrn, train_task, weights=weights)
 #mod <- mlr::train(lrn, train_task)
 pred <- predict(mod, test_task)
 
+################################################################################
+# Predict with first partial test set
+################################################################################
+# 
+# split_vector1 <- split_fs[["timeSplit"]](predictors, frac=.925)
+# split_vector2 <- split_fs[["timeSplit"]](predictors, frac=.95)
+# test_data1 <- data[!split_vector & split_vector1,]
+# test_data1a <- data[!split_vector & !split_vector1 & split_vector2,]
+# test_data2 <- data[!split_vector & !split_vector1,]
+# test_task1 <- makeMultilabelTask(data = test_data1, target = unlist(label_names))
+# test_task1a <- makeMultilabelTask(data = test_data1a, target = unlist(label_names))
+# test_task2 <- makeMultilabelTask(data = test_data2, target = unlist(label_names))
+# 
+# pred <- predict(mod, test_task1)
 
 ################################################################################
 # Evaluate performance
@@ -469,10 +528,6 @@ pred <- predict(mod, test_task)
 mlr::performance(pred, measure <- list(multilabel.hamloss, multilabel.subset01, multilabel.f1))
 perf <- getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
 sorted_perf <- perf[order(perf[,"auc.test.mean"], decreasing=TRUE),]
-
-print(summary(pred$data))
-
-print(counts$getFrequencies())
 
 print(sorted_perf)
 
@@ -522,10 +577,9 @@ plot_prec <- function(prob, truth) {
 # Plot precision vs recall for allsubmodels
 plot_prec(p[,to_graph], r[,to_graph])
 
-
 ################################################################################
 # Save top features
 ################################################################################
 
-# top_features <- topMultilabelModelFeatures(mod)
+# top_features <- topMultilabelModelFeatures(mod, frac=0.4)
 # writeFeatures(row.names(top_features), "top.txt")

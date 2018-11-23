@@ -66,3 +66,33 @@ codesForRegionsAndModels <- function(regions, models, parallel=TRUE) {
 codeToLabel <- function(c) {
   paste(c$SC_CD, c$SC_SERIAL_CD, sep='_')
 }
+
+getMatchingCodesBy <- function(codes, f) {
+  if(class(codes) == "data.frame") {
+    cs <- splitDataFrame(codes)
+  } else {
+    cs <- codes
+  }
+  res <- filterBy(cs, f)
+  return(res)
+}
+
+getMatchingCodes <- function(codes, date, sc_days) {
+  f <- function(c) {
+    delta <- c$OCCUR_DATE - date
+    in_window <- delta > 0 && delta <= sc_days
+    return(in_window)
+  }
+  res <- getMatchingCodesBy(codes, f)
+  return(res)
+}
+
+getMatchingCodesBefore <- function(codes, date) {
+  f <- function(c) {
+    delta <- c$OCCUR_DATE - date
+    match <- delta < 0
+    return(match)
+  }
+  res <- getMatchingCodesBy(codes, f)
+  return(res)
+}

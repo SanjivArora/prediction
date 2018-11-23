@@ -71,9 +71,9 @@ DataFile <- setRefClass("DataFile",
         Serial = as.character(Serial)
       )
       df[,date_field] <- as.Date(df[,date_field])
-      # We don't know the precise timing of acquisition with respect to file naming and international datelines, so allow +1 day, -1 week.
+      # We don't know the precise timing of acquisition with respect to file naming and international datelines, so allow +1 day, -3 days.
       if(filter_outdated) {
-        valid_dates <- .self$date - lubridate::days(-1:7)
+        valid_dates <- .self$date - lubridate::days(-1:3)
         df <- df[df[,date_field] %in% valid_dates,]
       }
       # Rewrite serial as concatenation of model and partial serial (i.e. as actual serial)

@@ -5,6 +5,7 @@ require(testit)
 source("lib/Util.R")
 source("lib/Parallel.R")
 source("lib/Logging.R")
+source("lib/SCFile.R")
 
 # R's idiosyncratic handling of namespaces / environments requires that we don't do the obvious thing and call this "log", since the reference would be overridden elsewhere.
 sampling_log <- getModuleLogger("Sampling")
@@ -38,45 +39,14 @@ getDailyFileSetsHash <- function(data_files, required_sources) {
   return(h)
 }
 
-
-getMatchingCodesBy <- function(codes, f) {
-  if(class(codes) == "data.frame") {
-    cs <- splitDataFrame(codes)
-  } else {
-    cs <- codes
-  }
-  res <- filterBy(cs, f)
-  return(res)
-}
-
-getMatchingCodes <- function(codes, date, sc_days) {
-  f <- function(c) {
-    delta <- c$OCCUR_DATE - date
-    in_window <- delta > 0 && delta <= sc_days
-    return(in_window)
-  }
-  res <- getMatchingCodesBy(codes, f)
-  return(res)
-}
-
-getMatchingCodesBefore <- function(codes, date) {
-  f <- function(c) {
-    delta <- c$OCCUR_DATE - date
-    match <- delta < 0
-    return(match)
-  }
-  res <- getMatchingCodesBy(codes, f)
-  return(res)
-}
-
 InstanceCounter <- setRefClass(
   "InstanceCounter",
   fields = list(
     ###################
     # Private variables
     ###################
-    # Dataframe of code instances
-    codes = "data.frame",
+    # Hash mapping serial to SC code rows
+    serial_to_codes = "hash",
     # Look ahead 0-n days to check for code
     sc_days = "numeric",
     # Minimum number of SC code instance days for code to register
@@ -85,8 +55,6 @@ InstanceCounter <- setRefClass(
     n_target_total = "numeric",
     # Target fraction of positive observations if upsampling is enabled (approximate, for sampling)
     n_target_positive_fraction = "numeric",
-    # Hash mapping serial to SC code rows
-    serial_to_codes = "hash",
     # Hash mapping code number to count. "0" is a special key for control case instances (i.e. no SC codes).
     counts = "hash",
     # Total number of predictor rows
@@ -97,12 +65,13 @@ InstanceCounter <- setRefClass(
     upsample_positive = "logical"
   ),
   methods = list(
-    initialize = function(..., sc_days=14, min_count=10, n_target_total=2000, n_target_positive_fraction=0.5, cap_freq=1, upsample_positive=TRUE) {
-      callSuper(...)
+    initialize = function(serial_to_codes, sc_days=14, min_count=10, n_target_total=2000, n_target_positive_fraction=0.5, cap_freq=1, upsample_positive=TRUE) {
+      callSuper()
+      .self$serial_to_codes <- serial_to_codes
       .self$sc_days <- sc_days
       .self$min_count <- min_count
-      code_list <- splitDataFrame(.self$codes)
-      .self$serial_to_codes <- groupBy(code_list, function (c) c$Serial)
+      #code_list <- splitDataFrame(.self$codes)
+      #.self$serial_to_codes <- groupBy(code_list, function (c) c$Serial)
       .self$counts <- hash()
       .self$counts[["0"]] <- 0
       .self$n_total <- 0
@@ -235,6 +204,15 @@ InstanceCounter <- setRefClass(
   )
 )
 
+# Work around restrictions of reference classes so we don't have to store a redundant codes dataframe on counter object
+makeInstanceCounter <- function(codes, ...) {
+  code_list <- splitDataFrame(codes)
+  serial_to_codes <- groupBy(code_list, function (c) c$Serial)
+  res <- InstanceCounter(serial_to_codes=serial_to_codes, ...)
+  return(res)
+}
+
+
 dailyFileSetsToDataframe <- function(daily_file_sets, features=features) {
   parts <- lapply(daily_file_sets, function(fs) dataFilesToDataframe(fs, features=features))
   df <- bindRowsForgiving(parts)
@@ -247,6 +225,8 @@ dailyFileSetsToDataframe <- function(daily_file_sets, features=features) {
 visitPredictorDataframes <- function(data_files, required_sources, f, features=FALSE, parallel=FALSE) {
   daily_file_sets <- getDailyFileSetsHash(data_files, required_sources)
   sampling_log$debug(paste("Visiting", length(daily_file_sets), "daily data frames"))
+  # Run garbage collection to minimize duplicated work in children
+  gc(verbose=FALSE, full=TRUE)
   visit <- function(date_string) {
     file_sets <- daily_file_sets[[date_string]]
     date <- as.Date(date_string)
@@ -273,7 +253,7 @@ dataFilesToCounter <- function(data_files,
   } else {
     cap_freq <- NA
   }
-  counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count, cap_freq=cap_freq)
+  counter <- makeInstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count, cap_freq=cap_freq)
   # Dirty trick for efficient parallelization - if executing in parallel, update the counter with count hashes from children.
   # Since the counter environment in this process will not be updated in parallel execution, this works.
   # If we are executing serially, the counter will automatically update.
@@ -281,7 +261,9 @@ dataFilesToCounter <- function(data_files,
     data_files,
     required_sources,
     function(df, date, daily_file_sets) {
-      counter <- InstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count, cap_freq=cap_freq)
+      # Run garbage collection to get rid of old counter objects
+      gc(verbose=FALSE, full=TRUE)
+      counter <- makeInstanceCounter(codes=sc_codes, sc_days=sc_days, min_count=min_count, cap_freq=cap_freq)
       counter$processDay(df, date)
       return(counter)
     },
@@ -437,7 +419,11 @@ dataFilesToDataset <- function(data_files,
   parts <- visitPredictorDataframes(
     data_files,
     required_sources,
-    function(df, date, daily_file_sets) sampleDataFrame(df, date, counts, daily_file_sets, delta_days, deltas, only_deltas),
+    function(df, date, daily_file_sets) {
+      # Run garbage collection to free up memory for siblings
+      gc(verbose=FALSE, full=TRUE)
+      sampleDataFrame(df, date, counts, daily_file_sets, delta_days, deltas, only_deltas)
+    },
     features=features,
     parallel=parallel
   )
