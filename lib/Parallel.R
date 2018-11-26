@@ -5,7 +5,7 @@ source("lib/Logging.R")
 parallel_log <- getModuleLogger("Parallel")
 
 # Tradeoff with sampling memory consumption
-ncores = detectCores() / 2
+ncores = detectCores() / 3
 
 # Wrap parallel lapply implementation to allow easy debugging and change of backend
 plapply <- function(l, f, parallel=TRUE) {

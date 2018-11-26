@@ -208,10 +208,28 @@ mapHash <- function(h, f) {
   return(res)
 }
 
+# Map hash {k,v} to {k, f(k,v)}
+mapHashWithKeys <- function(h, f) {
+  res <- hash()
+  for(k in keys(h)) {
+    res[[k]] <- f(k, h[[k]])
+  }
+  return(res)
+}
+
 equal <- function(l) {
   if(length(l)==0) {
     return(TRUE)
   }
   res <- lapply(l, function(x) identical(l[[1]], x)) %>% unlist %>% all
+  return(res)
+}
+
+# (xs, f) -> hash[as.character(x)] = f(x)
+mapToHash <- function(xs, f) {
+  res <- hash()
+  for (x in xs) {
+    res[[as.character(x)]] <- f(x)
+  }
   return(res)
 }

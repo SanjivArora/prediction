@@ -65,6 +65,6 @@ getExtraMultiLabelStats <- function(pred, raw_labels, counts, levels=c(0.50, 0.6
   }
   res <- res[2:nrow(res),]
   row.names(res) <- res[,"label"]
-  res[,2:nrow(res)] <- lapply(res[,2:nrow(res)], as.numeric)
+  res[,2:ncol(res)] <- lapply(res[,2:ncol(res)], as.numeric)
   return(res)
 }

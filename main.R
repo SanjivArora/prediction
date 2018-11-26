@@ -18,6 +18,7 @@ debugSource("lib/SCFile.R")
 debugSource("lib/Sampling.R")
 debugSource("lib/Logging.R")
 debugSource("lib/DataFile.R")
+debugSource("lib/Model.R")
 debugSource("lib/Results.R")
 
 #sources=c('Count', 'PMCount', 'Jam')
@@ -72,10 +73,10 @@ regions = c(
 
 models= c(
   'E15',
-  'E16',
-  'E17',
-  'E18',
-  'E19'
+  'E16'
+  # 'E17',
+  # 'E18',
+  # 'E19'
   # Exclude G models for now as counter names and SC subcodes differ 
   #'G69',
   #'G70'
@@ -135,7 +136,7 @@ if(selected_features) {
 
 codes_all <- codesForRegionsAndModels(regions, models, parallel)
 # Filter SC codes to target codes
-code_dups <- duplicated(codes_all[,c('Serial', 'SC_CD', 'SC_SERIAL_CD')])
+code_dups <- duplicated(codes_all[,c('Serial', 'SC_CD', 'SC_SERIAL_CD', 'OCCUR_DATE')])
 codes_unique <- codes_all[!code_dups,]
 code_indices <- plapply(splitDataFrame(codes_unique), function(c) has.key(c$SC_CD, target_code_hash))
 codes <- codes_unique[unlist(code_indices),]
@@ -321,11 +322,6 @@ matching_code_sets_sorted <- lapply(
 )
 matching_code_sets_unique <- lapply(matching_code_sets_sorted, function(cs) uniqueBy(cs, function(c) codeToLabel(c)))
 
-# Summarize code counts for final sampling
-# final_codes <- lapply(unlist(matching_code_sets_unique, recursive=FALSE), function(c) codeToLabel(c))
-# final_counts <- sort(table(unlist(final_codes)), decreasing=TRUE)
-# final_control_count <- length(filterBy(matching_code_sets_unique, function(cs) length(cs)==0))
-
 # Calculate responses
 code_set_to_labels <- function(code_set) {
   cs <- lapply(code_set, function(c) codeToLabel(c))
@@ -449,62 +445,17 @@ predictors_eligible <- take_eligible(predictors, string_factors=FALSE)
 
 require(mlr)
 
-importance <- TRUE
 
-data <- bind_cols(predictors_eligible, responses)
+train_data <- predictors_eligible[train_vector,]
+train_responses <- responses[train_vector,]
 
-train_data <- data[train_vector,]
-test_data <- data[test_vector,]
+# Train models in parallel as despite native threading support there are substantial serial sections
+models <- trainModelSet(label_names, train_data, train_responses, parallel=parallel)
 
-# Store full form test predictors for later use (serial and date, etc.)
-test_pred <- predictors[test_vector,]
+test_data <- predictors_eligible[test_vector,]
+test_responses <- responses[test_vector,]
 
-train_task <- makeMultilabelTask(data = train_data, target = unlist(label_names))
-test_task <- makeMultilabelTask(data = test_data, target = unlist(label_names))
-
-# Calculate weights such that each positive class has approximately .5/n_positive_classes, with the remaining half allocated to control cases.
-# Calculate target counts for each class
-
-train_target <- getTaskTargets(train_task)
-train_counts <- responsesToCounts(train_target)
-n_positive <- sum(responsesToPositiveCounts(train_target))
-positive_class_share <- 1 / ncol(responses)
-control_class_share <- 1
-
-n_train_samples <- nrow(train_data)
-
-weightForIndex <- function(i) {
-  row <- train_target[i,]
-  # Default to control weight
-  weight <- control_class_share / train_counts[["0"]]
-  # Take the maximum class weight if a class is positive
-  if(any(unlist(row))) {
-    for(k in names(train_counts)) {
-      if(k!="0" && row[,make.names(k)]) {
-        weight <- max(weight, positive_class_share / train_counts[[k]])
-      }
-    }
-  }
-  return(weight)
-}
-
-weights <- plapply(1:nrow(train_target), weightForIndex)
-weights <- unlist(weights)
-
-lrn <- makeLearner("classif.ranger", par.vals=list(
-  num.threads = detectCores() - 1,
-  num.trees = ntree,
-  importance = 'impurity'
-  #sample.fraction = 0.2
-))
-
-lrn <- makeMultilabelBinaryRelevanceWrapper(lrn)
-lrn <- setPredictType(lrn, "prob")
-#lrn <- setPredictType(lrn, "response")
-
-mod <- mlr::train(lrn, train_task, weights=weights)
-#mod <- mlr::train(lrn, train_task)
-pred <- predict(mod, test_task)
+evaluateModelSet(models, test_data, test_responses)
 
 ################################################################################
 # Predict with first partial test set
@@ -525,57 +476,17 @@ pred <- predict(mod, test_task)
 # Evaluate performance
 ################################################################################
 
-mlr::performance(pred, measure <- list(multilabel.hamloss, multilabel.subset01, multilabel.f1))
-perf <- getMultilabelBinaryPerformances(pred, measures <- list(mmce, auc))
-sorted_perf <- perf[order(perf[,"auc.test.mean"], decreasing=TRUE),]
-
-print(sorted_perf)
-
 extra_stats <- getExtraMultiLabelStats(pred, used_labels, counts)
 print(extra_stats)
 
-showModelFeatureImportance <- function(model, n=25) {
-  x <- getFeatureImportance(model)
-  features_desc <- x$res[, order(x$res[1,], decreasing=T)]
-  top_n <- t(features_desc[,1:n])
-  print(top_n)
-}
-
-if(importance) {
-  for(label in label_names) {
-    cat("\n\n")
-    print(paste("Importance for", label))
-    showModelFeatureImportance(mod$learner.model$next.model[[label]])
-  }
-}
-
-predicted <- pred$data[,grepl("^prob.", names(pred$data))]
-response <- pred$data[,grepl("^truth", names(pred$data))]
-p <- as.matrix(sapply(predicted, as.numeric))
-r <- as.matrix(sapply(response, as.numeric))
-
-# We can only graph classes with positive labels
-to_graph <- apply(r, 2, function(c) sum(c) > 0)
-
-plot_roc <- function(prob, truth) {
-  roc_pred <- ROCR::prediction(prob, truth)
-  roc_perf <- ROCR::performance(roc_pred, 'tpr', 'fpr')
-  ROCR::performance(roc_pred, 'auc')
-  ROCR::plot(roc_perf, colorize=TRUE)
-}
-
-plot_prec <- function(prob, truth) {
-  roc_pred <- ROCR::prediction(prob, truth)
-  roc_perf <- ROCR::performance(roc_pred, 'prec', 'rec')
-  ROCR::performance(roc_pred, 'auc')
-  ROCR::plot(roc_perf, colorize=TRUE)
-}
-
-# Plot ROC and precision for all submodels
-#plot_roc(p[,to_graph], r[,to_graph])
-
-# Plot precision vs recall for allsubmodels
-plot_prec(p[,to_graph], r[,to_graph])
+# 
+# if(importance) {
+#   for(label in label_names) {
+#     cat("\n\n")
+#     print(paste("Importance for", label))
+#     showModelFeatureImportance(mod$learner.model$next.model[[label]])
+#   }
+# }
 
 ################################################################################
 # Save top features
