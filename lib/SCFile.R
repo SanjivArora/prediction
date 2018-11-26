@@ -64,7 +64,10 @@ codesForRegionsAndModels <- function(regions, models, parallel=TRUE) {
 }
 
 codeToLabel <- function(c) {
-  paste(c$SC_CD, c$SC_SERIAL_CD, sep='_')
+  label <- paste(c$SC_CD, c$SC_SERIAL_CD, sep='_')
+  # Make this an R-compliant name
+  label <- make.names(label)
+  return(label)
 }
 
 getMatchingCodesBy <- function(codes, f) {

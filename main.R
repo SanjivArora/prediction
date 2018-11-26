@@ -47,11 +47,14 @@ cap_sampling = TRUE
 # Target samples (will pick up extra samples where there are multiple applicable codes)
 total_samples <- 50000
 
+# Build models for up to this many <SC>_<subcode> pairs
+max_models <- 15
+
 # Maximum number of days to predict SC code
 sc_code_days <- 14
 #sc_code_days=2
 
-# Minimum number of sample-days to predict a label
+# Sample-day threshold for counter filtering
 min_count <- 500
 
 # Offsets to use for generating deltas for numerical data
@@ -190,6 +193,19 @@ predictors_all <- dataFilesToDataset(
 )
 predictors <- predictors_all
 
+
+################################################################################
+# Randomize predictor row and column order to mitigate any algorithmic bias
+################################################################################
+
+# Set Seed so that same sample can be reproduced in future
+set.seed(101) 
+
+# Randomize predictor row order
+predictors<-predictors[sample(nrow(predictors)),]
+# Randomize predictor column order
+predictors<-predictors[,sample(ncol(predictors))]
+
 ################################################################################
 # Eliminate predictors where Count and PMCount data are out of sync
 ################################################################################
@@ -231,17 +247,85 @@ if(relative_replacement_dates) {
 }
 
 ###############################################################################
+# Build list of matching code sets for each row
+################################################################################
+
+serial_to_codes <- counts$getSerialToCodes()
+
+getMatchingCodesForIndex <- function(i) {
+  row <- predictors[i, c("Serial", date_field)]
+  getMatchingCodes(
+    getWithDefault(serial_to_codes, row$Serial, list()),
+    row[,date_field],
+    counts$getSCDays())
+}
+
+# Pass in only required values for efficiency
+matching_code_sets <- plapply(
+  1:nrow(predictors),
+  getMatchingCodesForIndex,
+  parallel=parallel
+)
+
+# Get the first instance of each SC code (works due to uniqueBy returning the last matching value)
+# Indexing by time would be ideal but probably not worth the added complexity.
+matching_code_sets_sorted <- plapply(
+  matching_code_sets,
+  function(cs) sortBy(cs, function(c) c$OCCUR_DATE, desc=TRUE),
+  parallel=parallel
+)
+
+matching_code_sets_unique <- plapply(
+  matching_code_sets_sorted,
+  function(cs) uniqueBy(cs, function(c) codeToLabel(c)),
+  parallel=parallel
+)
+
+
+###############################################################################
+# Build list of matching code sets for each row
+################################################################################
+
+label_to_row_indices <- hash()
+for(i in 1:nrow(predictors)) {
+  cs <- matching_code_sets_unique[[i]]
+  for (c in cs) {
+    label <- codeToLabel(c)
+    indices <- getWithDefault(label_to_row_indices, label, list())
+    label_to_row_indices[[label]] <- append(indices, i)
+  }
+}
+
+label_counts <- mapHash(label_to_row_indices, function(indices) length(indices))
+
+label_to_unique_serials <- mapHash(
+  label_to_row_indices,
+  function(row_indices) {
+    unique(predictors$Serial[unlist(row_indices)])
+  }
+)
+
+###############################################################################
 # Get labels for codes that meet the required threshold for instances
 ################################################################################
 
-used_labels <- keys(counts$getEligibleCounts())
-used_labels <- used_labels[used_labels!="0"]
+label_to_serial_count <- mapHash(label_to_unique_serials, function(serials) length(serials))
+
+label_to_count_and_unqiues <- mapHashWithKeys(
+  label_counts,
+  function(label, count) c(count, label_to_serial_count[[label]])
+)
+
+# Use geometric mean of observation count and number of unqiue serials as a figure of merit
+label_to_priority <- mapHash(label_to_count_and_unqiues, geomMean)
+#label_to_priority <- label_to_serial_count
+
+top_labels <- tail(sortBy(label_to_priority, function(x) x[[1]]), max_models)
+used_labels <- names(top_labels)
 
 ################################################################################
 # Add predictors for historical SC codes
 ################################################################################
-
-serial_to_codes <- counts$getSerialToEligibleCodes()
 
 if(historical_sc_predictors) {
   # Get the last instance of each SC code (works due to uniqueBy returning the last matching value)
@@ -292,35 +376,6 @@ if(historical_sc_predictors) {
 ################################################################################
 # Train and test datasets
 ################################################################################
-# Select 75% of data for training set, 25% for test set
-
-# Set Seed so that same sample can be reproduced in future
-set.seed(101) 
-
-# Randomize predictor row order
-predictors<-predictors[sample(nrow(predictors)),]
-# Randomize predictor column order
-predictors<-predictors[,sample(ncol(predictors))]
-
-
-getMatchingCodesForIndex <- function(i) {
-  row <- predictors[i, c("Serial", date_field)]
-  getMatchingCodes(serial_to_codes[[row$Serial]], row[,date_field], counts$getSCDays())
-}
-
-# Pass in only required values for efficiency
-# TODO: only evaluate for serials already in serial_to_codes
-matching_code_sets <- plapply(
-  1:nrow(predictors),
-  getMatchingCodesForIndex
-)
-
-# Get the first instance of each SC code (works due to uniqueBy returning the last matching value)
-matching_code_sets_sorted <- lapply(
-  matching_code_sets,
-  function(cs) sortBy(cs, function(c) c$OCCUR_DATE, desc=TRUE)
-)
-matching_code_sets_unique <- lapply(matching_code_sets_sorted, function(cs) uniqueBy(cs, function(c) codeToLabel(c)))
 
 # Calculate responses
 code_set_to_labels <- function(code_set) {
@@ -330,6 +385,7 @@ code_set_to_labels <- function(code_set) {
   res <- as.data.frame(res)
   return(res)
 }
+
 responses_parts <- plapply(matching_code_sets_unique, code_set_to_labels, parallel=parallel)
 responses <-bindRowsForgiving(responses_parts)
 # Make R-standard names
@@ -466,18 +522,14 @@ evaluateModelSet(models, test_data, test_responses)
 # test_data1 <- data[!split_vector & split_vector1,]
 # test_data1a <- data[!split_vector & !split_vector1 & split_vector2,]
 # test_data2 <- data[!split_vector & !split_vector1,]
-# test_task1 <- makeMultilabelTask(data = test_data1, target = unlist(label_names))
-# test_task1a <- makeMultilabelTask(data = test_data1a, target = unlist(label_names))
-# test_task2 <- makeMultilabelTask(data = test_data2, target = unlist(label_names))
-# 
-# pred <- predict(mod, test_task1)
+
 
 ################################################################################
 # Evaluate performance
 ################################################################################
 
-extra_stats <- getExtraMultiLabelStats(pred, used_labels, counts)
-print(extra_stats)
+# extra_stats <- getExtraMultiLabelStats(pred, used_labels, counts)
+# print(extra_stats)
 
 # 
 # if(importance) {

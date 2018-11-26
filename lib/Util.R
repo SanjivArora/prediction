@@ -233,3 +233,7 @@ mapToHash <- function(xs, f) {
   }
   return(res)
 }
+
+geomMean <- function(xs) {
+  exp(mean(log(xs)))
+}
