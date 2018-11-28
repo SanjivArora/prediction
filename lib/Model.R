@@ -1,0 +1,88 @@
+require(mlr)
+require(parallel)
+
+source("lib/Logging.R")
+
+model_log <- getModuleLogger("Model")
+
+calculateWeights <- function(responses, positive_share=1, control_share=1, parallel=TRUE){
+  model_log$debug("Calculating weights")
+  
+  counts <- responsesToCounts(responses)
+  n_positive <- sum(responsesToPositiveCounts(responses))
+  n_train_samples <- nrow(responses)
+  
+  weightForIndex <- function(i) {
+    row <- responses[i,1:ncol(responses),drop=FALSE]
+    # Default to control weight
+    weight <- control_share / counts[["0"]]
+    # Take the maximum class weight if a class is positive
+    if(any(unlist(row))) {
+      for(k in names(counts)) {
+        if(k!="0" && row[,make.names(k)]) {
+          weight <- max(weight, positive_share / counts[[k]])
+        }
+      }
+    }
+    return(weight)
+  }
+  
+  weights <- plapply(1:nrow(responses), weightForIndex, parallel=parallel)
+  weights <- unlist(weights)
+  return(weights)
+}
+
+trainLabel <- function(label, predictors, response, n_threads=NA) {
+  model_log$debug(paste("Preparing to train", label))
+  
+  data <- bind_cols(predictors, response)
+  task <- makeClassifTask(data=data, target=label)
+  
+  # Calculate weights such that the current positive class has balanced representation with the control class
+  target <- getTaskTargets(task)
+  target <- target %>% as.logical %>% as.data.frame
+  colnames(target) <- label
+
+  weights <- calculateWeights(target, parallel=FALSE)
+  
+  if(is.na(n_threads)) {
+    n_threads <- detectCores() - 1
+  }
+  
+  
+  lrn <- makeLearner("classif.ranger", par.vals=list(
+    num.threads = n_threads,
+    num.trees = ntree,
+    importance = 'impurity'
+    #sample.fraction = 0.2
+  ))
+  lrn <- setPredictType(lrn, "prob")
+  
+  model_log$info(paste("Training", label))
+  mod <- mlr::train(lrn, task, weights=weights)
+  return(mod)
+}
+
+predictWith <- function(mod, predictors, response) {
+  label <- names(response)
+  model_log$info(paste("Predicting", label))
+  data <- bind_cols(predictors, response)
+  task <- makeClassifTask(data=data, target=label)
+  pred <- predict(mod, task)
+  return(pred)
+}
+
+# Responses must be a labeled dataframe
+trainModelSet <- function(labels, data, responses, parallel=TRUE) {
+  model_log$info(paste("Training models for", length(labels), "labels"))
+  n_threads <- max(1, ceiling(detectCores() / length(labels)))
+  models <- plapply(
+    labels, 
+    function(l) {
+      trainLabel(l, train_data, train_responses[,l,drop=FALSE], n_threads=n_threads)
+    },
+    parallel=parallel
+  )
+  res <- hash(labels, models)
+  return(res)
+}

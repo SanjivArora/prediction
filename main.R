@@ -20,6 +20,7 @@ debugSource("lib/Logging.R")
 debugSource("lib/DataFile.R")
 debugSource("lib/Model.R")
 debugSource("lib/Results.R")
+debugSource("lib/Evaluate.R")
 
 #sources=c('Count', 'PMCount', 'Jam')
 sources=c('PMCount', 'Count') 
@@ -34,18 +35,8 @@ library(profvis)
 # Number of days of predictor data files to use for training
 data_days <- 1000
 
-# If true, aim to use every observation (overrides total_samples)
-all_data <- TRUE
-# If true, sample positive cases to value of positive_samples rather than at base rate
-upsample_positive <- FALSE
-# Ignore upsample_positives if all_data is true - not required as we have training weights
-if(all_data) {
-  upsample_positive <- FALSE
-}
-# If true, take a maximum of one sample for each observation when upsampling is enabled
-cap_sampling = TRUE
-# Target samples (will pick up extra samples where there are multiple applicable codes)
-total_samples <- 50000
+# Fraction of observations to use
+sample_rate <- 0.3
 
 # Build models for up to this many <SC>_<subcode> pairs
 max_models <- 15
@@ -54,14 +45,11 @@ max_models <- 15
 sc_code_days <- 14
 #sc_code_days=2
 
-# Sample-day threshold for counter filtering
-min_count <- 500
-
 # Offsets to use for generating deltas for numerical data
 delta_days <- c(14)
 #delta_days = c(1, 2)
 
-# Fraction of dataset to use for training (less SC overlap window)
+# Fraction of days to use for training (less SC overlap window)
 training_frac = 0.9
 
 historical_sc_predictors <- TRUE
@@ -91,9 +79,6 @@ models= c(
 parallel=TRUE
 #parallel=FALSE
 
-# If upsampling is enabled, SC code instances will constitute at least this fraction of samples
-positive_sample_fraction <- 0.5
-
 # Specify target codes. Note: prediction is based on a <code>_<subcode> label, currently we don't filter on subcode.
 # target_codes <- list(
 #   200:299, # "C01 NOT FUNCTION AT ALL"
@@ -112,7 +97,8 @@ for(c in target_codes) {
   target_code_hash[[as.character(c)]] <- TRUE
 }
 
-date_field <- "GetDate"
+date_fields <- c('GetDate', 'ChargeCounterDate')
+date_field <- date_fields[[1]]
 
 # Wait an additional period for SC code data as up to date information for a machine, and the typical lag seems to be a few days.
 sc_data_buffer = 4
@@ -169,21 +155,11 @@ data_files <- unlist(file_sets[1:data_days])
 require(profvis)
 #profvis({
 
-counts <- dataFilesToCounter(data_files, sources, codes, sc_code_days, min_count, cap_sampling, features=fs, parallel=parallel)
-print(counts$getEligibleCounts())
-if(all_data) {
-  counts$setTargetTotal(counts$getTotal())
-} else {
-  counts$setTargetTotal(total_samples)
-}
-counts$setTargetPositiveFraction(positive_sample_fraction)
-counts$setUpsamplePositive(upsample_positive)
-
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
   codes,
-  counts,
+  sample_rate,
   sc_code_days,
   delta_days=delta_days,
   deltas=deltas,
@@ -210,7 +186,6 @@ predictors<-predictors[,sample(ncol(predictors))]
 # Eliminate predictors where Count and PMCount data are out of sync
 ################################################################################
 
-date_fields <- c('GetDate', 'ChargeCounterDate')
 date_vals <- predictors[,date_fields]
 predictors <- predictors[date_vals[,date_fields[[1]]] == date_vals[,date_fields[[2]]],]
 
@@ -250,14 +225,15 @@ if(relative_replacement_dates) {
 # Build list of matching code sets for each row
 ################################################################################
 
-serial_to_codes <- counts$getSerialToCodes()
+serial_to_codes <- makeSerialToCodes(codes)
 
 getMatchingCodesForIndex <- function(i) {
   row <- predictors[i, c("Serial", date_field)]
   getMatchingCodes(
     getWithDefault(serial_to_codes, row$Serial, list()),
     row[,date_field],
-    counts$getSCDays())
+    sc_code_days
+  )
 }
 
 # Pass in only required values for efficiency

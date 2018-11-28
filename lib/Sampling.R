@@ -204,14 +204,17 @@ InstanceCounter <- setRefClass(
   )
 )
 
+makeSerialToCodes <- function(codes) {
+  code_list <- splitDataFrame(codes)
+  groupBy(code_list, function (c) c$Serial)
+}
+
 # Work around restrictions of reference classes so we don't have to store a redundant codes dataframe on counter object
 makeInstanceCounter <- function(codes, ...) {
-  code_list <- splitDataFrame(codes)
-  serial_to_codes <- groupBy(code_list, function (c) c$Serial)
+  serial_to_codes <- makeSerialToCodes(codes)
   res <- InstanceCounter(serial_to_codes=serial_to_codes, ...)
   return(res)
 }
-
 
 dailyFileSetsToDataframe <- function(daily_file_sets, features=features) {
   parts <- lapply(daily_file_sets, function(fs) dataFilesToDataframe(fs, features=features))
@@ -353,10 +356,13 @@ augmentWithDeltas <- function(df, date, previous, delta_days, only_deltas=FALSE)
 }
 
 # Sample dataframe to 100% coverage before taking duplicates. Augment data with deltas to previous days for numeric values.
-sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,7), deltas=TRUE, only_deltas=TRUE) {
+sampleDataFrame <- function(df, date, sample_rate, daily_file_sets, delta_days=c(1,3,7), deltas=TRUE, only_deltas=TRUE) {
   # TODO: currently if a serial has multiple SC codes, we sample independently for each code.
   # Combined sampling or adjusting frequencies to drop overlapped samples would improve efficiency and class balance.
   sampling_log$debug(paste("Sampling dataset for", date))
+  n <- nrow(df) * sample_rate
+  sampled_serials <- stochasticSelection(df$Serial, n)
+  df <- df[unlist(sampled_serials),]
   if(deltas) {
     prior_dfs <- getDeltaDataFrames(date, daily_file_sets, delta_days)
     if(!is.list(prior_dfs)) {
@@ -369,36 +375,8 @@ sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,
   if(!is.data.frame(augmented)) {
     return(FALSE)
   }
-  if(counts$getUpsamplePositive()) {
-    sampled_serials <- list()
-    freqs <- counts$getSamplingFrequencies()
-    serial_to_codes = counts$getSerialToCodes()
-    code_to_serials <- hash()
-    for(serial in augmented$Serial) {
-      cs <- getWithDefault(serial_to_codes, serial, list())
-      hits <- getMatchingCodes(cs, date, counts$sc_days)
-      hit_codes <- unique(lapply(hits, function(c) codeToLabel(c)))
-      for (c in hit_codes) {
-        current <- getWithDefault(code_to_serials, c, list())
-        code_to_serials[[c]] <- append(current, serial)
-      }
-      # If no hits, add to control cases
-      if(length(hits) == 0) {
-        current <- getWithDefault(code_to_serials, "0", list())
-        code_to_serials[["0"]] <- append(current, serial)
-      }
-    }
-    for(code in keys(code_to_serials)) {
-      serials <- code_to_serials[[code]]
-      n <- getWithDefault(freqs, code, 0) * length(serials)
-      sampled <- stochasticSelection(serials, n)
-      sampled_serials <- append(sampled_serials, sampled)
-    }
-  } else {
-    # If we aren't upsampling, sample serials directly
-    n <- nrow(augmented) * counts$getTargetFrequency()
-    sampled_serials <- stochasticSelection(augmented$Serial, n)
-  }
+  # Filter to serials for which we have data 
+  sampled_serials <- intersect(df$Serial, augmented$Serial)
   n <- length(sampled_serials)
   res <- augmented[unlist(sampled_serials),]
   assert(is.data.frame(res))
@@ -409,7 +387,7 @@ sampleDataFrame <- function(df, date, counts, daily_file_sets, delta_days=c(1,3,
 dataFilesToDataset <- function(data_files,
                                required_sources,
                                sc_codes,
-                               counts,
+                               sample_rate=1,
                                sc_days=14,
                                delta_days=c(1, 3, 7),
                                deltas=TRUE,
@@ -422,7 +400,7 @@ dataFilesToDataset <- function(data_files,
     function(df, date, daily_file_sets) {
       # Run garbage collection to free up memory for siblings
       gc(verbose=FALSE, full=TRUE)
-      sampleDataFrame(df, date, counts, daily_file_sets, delta_days, deltas, only_deltas)
+      sampleDataFrame(df, date, sample_rate, daily_file_sets, delta_days, deltas, only_deltas)
     },
     features=features,
     parallel=parallel
