@@ -175,7 +175,7 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
   latest_data_file_date <- latest_sc_file_date - sc_code_days - sc_data_buffer
   # TODO: check per region+model combination
   filtered_data_files <- filterBy(
-    all_data_files,
+    all_files,
     function(f) {
       as.Date(f$date) < latest_data_file_date &&
       f$region == region &&
@@ -193,10 +193,10 @@ getEligibleFileSets <- function(regions, models, sources, ...) {
   for(region in regions) {
     for(model in models) {
       files <- getEligibleModelDataFiles(region, model, sources, all_files=all_files, ...)
-      all_files <- append(all_files, files)
+      filtered_files <- append(all_files, files)
     }
   }
   
-  file_sets <- getDailyFileSets(filtered_data_files, sources)
+  file_sets <- getDailyFileSets(filtered_files, sources)
   return(file_sets)
 }

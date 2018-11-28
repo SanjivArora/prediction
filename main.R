@@ -24,6 +24,8 @@ debugSource("lib/Evaluate.R")
 debugSource("lib/Cleaning.R")
 debugSource("lib/SC.R")
 debugSource("lib/Augment.R")
+debugSource("lib/Response.R")
+debugSource("lib/Split.R")
 
 
 #sources=c('Count', 'PMCount', 'Jam')
@@ -144,7 +146,20 @@ predictors_all <- dataFilesToDataset(
 )
 predictors <- predictors_all
 
+###############################################################################
+# Clean and condition dataset
+################################################################################
+
 predictors <- cleanPredictors(predictors)
+
+# Stats for dataset
+print(paste(nrow(predictors), "total observations"))
+
+###############################################################################
+# Choose labels for which we have the best combinations of observations and unique serials 
+################################################################################
+
+used_labels <- selectLabels(predictors)
 
 ###############################################################################
 # Build list of matching code sets for each row
@@ -157,195 +172,52 @@ matching_code_sets_unique <- getMatchingCodeSets(predictors, serial_to_codes)
 ################################################################################
 
 if(historical_sc_predictors) {
-  # Get the last instance of each SC code (works due to uniqueBy returning the last matching value)
-  getPreviousCodesForRow <- function(row) {
-    cs <- getMatchingCodesBefore(serial_to_codes[[row$Serial]], row[,date_field])
-    sorted <- sortBy(cs, function(c) c$OCCUR_DATE)
-    res <- uniqueBy(cs, function(c) codeToLabel(c))
-    return(res)
-  }
-  
-  # Pass in only required values for efficiency
-  getPreviousCodesForIndex <- function(i) {
-    getPreviousCodesForRow(predictors[i,c("Serial", date_field)])
-  }
-  
-  previous_code_sets_unique <- plapply(
-    1:nrow(predictors),
-    getPreviousCodesForIndex,
-    parallel=parallel
-  )
-  
-  index_to_hist_sc <- function(i, default_delta=10000) {
-    code_set <- previous_code_sets_unique[[i]]
-    cs <- groupBy(code_set, function(c) codeToLabel(c))
-    part <- list()
-    predictor_date <- predictors[i, date_field]
-    for(label in used_labels) {
-      if(has.key(label, cs)) {
-        c <- cs[[label]][[1]]
-        delta <- predictor_date - c$OCCUR_DATE
-      } else {
-        delta <- default_delta
-      }
-      part <- append(part, as.numeric(delta))
-    }
-    res <- matrix(unlist(part), nrow=1)
-    res <- as.data.frame(res)
-    return(res)
-  }
-  
-  hist_sc_predictors_parts <- plapply(1:nrow(predictors), index_to_hist_sc, parallel=parallel)
-  hist_sc_predictors <- bindRowsForgiving(hist_sc_predictors_parts)
-  colnames(hist_sc_predictors) <- paste("days.since.last", used_labels, sep=".")
-  
-  predictors <- cbind(predictors, hist_sc_predictors)
-}
-
-################################################################################
-# Train and test datasets
-################################################################################
-
-# Calculate responses
-code_set_to_labels <- function(code_set) {
-  cs <- lapply(code_set, function(c) codeToLabel(c))
-  part <- used_labels %in% cs
-  res <- matrix(part, nrow=1)
-  res <- as.data.frame(res)
-  return(res)
-}
-
-responses_parts <- plapply(matching_code_sets_unique, code_set_to_labels, parallel=parallel)
-responses <-bindRowsForgiving(responses_parts)
-# Make R-standard names
-label_names <- make.names(used_labels)
-colnames(responses) <- label_names
-
-# Stats for dataset
-print(paste(nrow(predictors), "total observations"))
-
-responsesToPositiveCounts <- function(responses) {sapply(responses, sum)}
-responsesToControlCount <- function(responses) {sum(apply(responses, 1, Negate(any)))}
-responsesToCounts <- function(responses) {
-  counts <- responsesToPositiveCounts(responses)
-  counts[["0"]] <- responsesToControlCount(responses)
-  return(counts)
-}
-
-print("Observation counts for SC codes:")
-print(responsesToCounts(responses))
-
-default_frac <- training_frac
-# For reference only, will encourage memorizing cases
-randomSplit <- function(predictors, frac=default_frac) {
-  indices <- runif(length(predictors)) <= frac
-  return(indices)
-}
-
-# Approximate split of samples by serial
-serialSplit <- function(predictors, frac=default_frac) {
-  all_serials <- unique(predictors$Serial)
-  serials <- sample(all_serials, size = floor(frac*length(all_serials)), replace = F)
-  indices <- predictors$Serial %in% serials
-  return(indices)
-}
-
-# Approximate split of samples by time, oldest first.
-timeSplit <- function(predictors, frac=default_frac) {
-  orders <- order(predictors[,date_field])
-  newest <- head(orders, floor(length(orders) * (1-frac)))
-  res <- rep(TRUE, nrow(predictors))
-  res[newest] <- FALSE
-  return(res)
-}
-
-# Work around Rs inability to compare references to functions
-split_fs <- hash(
-  c("randomSplit", "serialSplit", "timeSplit"),
-  c(randomSplit, serialSplit, timeSplit)
-)
-
-#split_type <- "randomSplit"
-#split_type <- "serialSplit"
-split_type <- "timeSplit"
-
-split_vector <- split_fs[[split_type]](predictors)
-
-train_vector <- split_vector
-test_vector <- !split_vector
-# If splitting on time, drop sc_code_days worth of data before split so we don't count cases where there is overlap.
-if(split_type == "timeSplit") {
-  # Drop an additional period to allow for non-exact windows
-  total_days_to_drop <- sc_code_days + 4
-  print(paste("Dropping", total_days_to_drop, "days of training data to prevent SC code window overlapping with test set"))
-  predictor_dates <- as.Date(predictors[,date_field])
-  train_dates <- predictor_dates[train_vector]
-  latest <- sort(train_dates, decreasing=TRUE)[[1]]
-  latest_eligible <- latest - total_days_to_drop
-  train_vector <- unlist(lapply(predictor_dates, function(d) d <= latest_eligible)) & train_vector
-  if(sum(train_vector) == 0) {
-    stop("No eligible training data")
-  }
+  predictors <- addHistSC(predictors, serial_to_codes)
 }
 
 ################################################################################
 # Restrict to valid numeric values
 ################################################################################
 
-replace_na<-function(data){
-  temp <- as.data.frame(data)
-  # Using an extreme value works well with decision tree methods as it is readily excluded without affecting the normal range
-  # Divide by 4 to avoid integer overflow in later processing
-  temp[is.na(temp)]<- .Machine$integer.max / 4
-  return(temp)
-}
+predictors_eligible <- filterIneligible(predictors, string_factors=FALSE)
 
-take_eligible <- function(dataset, string_factors=FALSE) {
-  res <- dataset
-  char_cols <- unlist(lapply(res, is.character))
-  if(string_factors) {
-    # Strings to factors
-    res[,char_cols] <- lapply(res[,char_cols], as.factor)
-    # Exclude Serial
-    res <- select(res, -Serial)
-  } else {
-    res <- res[,!char_cols]
-  }
-  # Make NA a factor level named None
-  factor_cols <- unlist(lapply(res, is.factor))
-  res[,factor_cols] <- lapply(res[,factor_cols], function(x) fct_explicit_na(x, na_level="None"))
-  # Exclude dates
-  res <- res[, !unlist(lapply(res, is.Date))]
-  # Replace NAs with default numerical value
-  res <- replace_na(res)
-  return(res)
-}
+################################################################################
+# Generate responses
+################################################################################
 
-predictors_eligible <- take_eligible(predictors, string_factors=FALSE)
+responses <- generateResponses(matching_code_sets_unique, used_labels)
 
+print("Observation counts for SC codes:")
+print(responsesToCounts(responses))
+
+################################################################################
+# Train and test datasets
+################################################################################
+
+split_type <- "timeSplit"
+
+splits <- splitPredictors(predictors, split_type, frac=training_frac, sc_code_days=sc_code_days, date_field=date_field)
+train_vector <- splits[['train']]
+test_vector <- splits[['test']]
 
 ################################################################################
 # Model
 ################################################################################
 
-require(mlr)
-
-
 train_data <- predictors_eligible[train_vector,]
 train_responses <- responses[train_vector,]
 
 # Train models in parallel as despite native threading support there are substantial serial sections
-models <- trainModelSet(label_names, train_data, train_responses, parallel=parallel)
+models <- trainModelSet(used_labels, train_data, train_responses, parallel=parallel)
 
 test_data <- predictors_eligible[test_vector,]
 test_responses <- responses[test_vector,]
 
-evaluateModelSet(models, test_data, test_responses)
-
-
 ################################################################################
 # Evaluate performance
 ################################################################################
+
+evaluateModelSet(models, test_data, test_responses)
 
 # extra_stats <- getExtraMultiLabelStats(pred, used_labels, counts)
 # print(extra_stats)

@@ -88,7 +88,7 @@ trainModelSet <- function(labels, data, responses, parallel=TRUE) {
 }
 
 # Get labels for codes with the best combination of observations and unique serials
-selectLabels <- function(predictors, n=10) {
+selectLabels <- function(predictors, matching_code_sets_unique, n=10) {
   # Build list of matching code sets for each row
   label_to_row_indices <- hash()
   for(i in 1:nrow(predictors)) {
