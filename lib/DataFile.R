@@ -140,12 +140,63 @@ pathsToDataFrame <- function(paths, cls=DataFile) {
 }
 
 # Instances for directory, default to base_path
-instancesForDir <- function(directory=base_path, pattern=".*", cls=DataFile) {
+instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=DataFile) {
+  if(identical(regions, NA)) {
+    region_pattern <- '[^_]*'
+  } else {
+    region_pattern <- paste(regions, sep='|')
+  }
+  if(identical(models, NA)) {
+    model_pattern <- '[^_]*'
+  } else {
+    model_pattern <- paste(models, sep='|')
+  }
+  pattern <- paste(region_pattern, model_pattern, sep='_')
   paths <- list.files(directory,pattern=pattern, full.names=TRUE)
   paths <- sort(unlist(paths))
   res <- lapply(paths, function(path) cls(path=path))
   return(res)
 }
 
+getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, sc_data_buffer=4, all_files=NA) {
+  # Don't use is.na here as it generates a warning message when used with a vector
+  if(identical(all_files, NA)) {
+    all_files <- instancesForDir()
+  }
+  # Restrict data set to days for which we have current SC code data, and a maximum of data_days
+  sc_files <- filterBy(all_files, function(f) f$source=="SC" && f$region==region && f$model==model)
+  sc_files <- sortBy(sc_files, function(f) f$date)
+  if(length(sc_files)==0) {
+    return(list())
+  }
+  latest <- last(sortBy(sc_files, function(f) f$date))
+  latest_sc_file_date <- as.Date(latest$date)
+  # Wait an additional period for SC data to be up to date for a machine, the lag can be a few days.
+  latest_data_file_date <- latest_sc_file_date - sc_code_days - sc_data_buffer
+  # TODO: check per region+model combination
+  filtered_data_files <- filterBy(
+    all_data_files,
+    function(f) {
+      as.Date(f$date) < latest_data_file_date &&
+      f$region == region &&
+      f$model == model &&
+      f$source %in% sources
+    }
+  )
+  return(filtered_data_files)
+}
 
-#d <- DataFile(path="RNZ_E16_Count_20180714.csv")
+getEligibleFileSets <- function(regions, models, sources, ...) {
+  all_files <- instancesForDir(regions=regions, models=models)
+  
+  filtered_files <- list()
+  for(region in regions) {
+    for(model in models) {
+      files <- getEligibleModelDataFiles(region, model, sources, all_files=all_files, ...)
+      all_files <- append(all_files, files)
+    }
+  }
+  
+  file_sets <- getDailyFileSets(filtered_data_files, sources)
+  return(file_sets)
+}

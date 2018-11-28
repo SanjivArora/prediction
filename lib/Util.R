@@ -1,6 +1,7 @@
 require(hash)
 require(plyr)
 require(rlang)
+require(magrittr)
 
 substrRight <- function(x, n){
   substr(x, nchar(x)-n+1, nchar(x))
@@ -206,6 +207,11 @@ mapHash <- function(h, f) {
     res[[k]] <- f(h[[k]])
   }
   return(res)
+}
+
+# Map hash {k, v} to list of f(v)
+mapHashToList <- function(h, f) {
+  h %>% mapHash(f) %>% values(simplify=FALSE) %>% unname
 }
 
 # Map hash {k,v} to {k, f(k,v)}

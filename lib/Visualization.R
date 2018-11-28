@@ -2,7 +2,7 @@
 
 library(dplyr)
 
-remove_na<-function(data,normalize = TRUE){
+remove_na<-function(data, normalize = TRUE){
   data[is.na(data)==TRUE]<-0
   if(normalize ==TRUE) {
     data<-(data- colMeans(data))/ifelse(colSds(as.matrix(data))==0,1,colSds(as.matrix(data)))

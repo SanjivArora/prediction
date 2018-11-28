@@ -86,3 +86,38 @@ trainModelSet <- function(labels, data, responses, parallel=TRUE) {
   res <- hash(labels, models)
   return(res)
 }
+
+# Get labels for codes with the best combination of observations and unique serials
+selectLabels <- function(predictors, n=10) {
+  # Build list of matching code sets for each row
+  label_to_row_indices <- hash()
+  for(i in 1:nrow(predictors)) {
+    cs <- matching_code_sets_unique[[i]]
+    for (c in cs) {
+      label <- codeToLabel(c)
+      indices <- getWithDefault(label_to_row_indices, label, list())
+      label_to_row_indices[[label]] <- append(indices, i)
+    }
+  }
+  
+  label_counts <- mapHash(label_to_row_indices, function(indices) length(indices))
+  
+  label_to_unique_serials <- mapHash(
+    label_to_row_indices,
+    function(row_indices) {
+      unique(predictors$Serial[unlist(row_indices)])
+    }
+  )
+  label_to_serial_count <- mapHash(label_to_unique_serials, function(serials) length(serials))
+  
+  label_to_count_and_unqiues <- mapHashWithKeys(
+    label_counts,
+    function(label, count) c(count, label_to_serial_count[[label]])
+  )
+  
+  # Use geometric mean of observation count and number of unqiue serials as a figure of merit
+  label_to_priority <- mapHash(label_to_count_and_unqiues, geomMean)
+  top_labels <- tail(sortBy(label_to_priority, function(x) x), n)
+  res <- names(top_labels)
+  return(res)
+}

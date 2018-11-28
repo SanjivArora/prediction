@@ -21,6 +21,10 @@ debugSource("lib/DataFile.R")
 debugSource("lib/Model.R")
 debugSource("lib/Results.R")
 debugSource("lib/Evaluate.R")
+debugSource("lib/Cleaning.R")
+debugSource("lib/SC.R")
+debugSource("lib/Augment.R")
+
 
 #sources=c('Count', 'PMCount', 'Jam')
 sources=c('PMCount', 'Count') 
@@ -62,7 +66,7 @@ regions = c(
   'RNZ'
 )
 
-models= c(
+device_models= c(
   'E15',
   'E16'
   # 'E17',
@@ -86,22 +90,11 @@ parallel=TRUE
 #   800:899, # "C01 NOT FUNCTION AT ALL
 #   900:999 # "C01 NOT FUNCTION AT ALL"  
 # )
-target_codes <- list(1:999)
-target_codes <- Reduce(append, target_codes)
-
 # Exclude 899
 #target_codes <- target_codes[target_codes != 899]
+target_codes <- 1:999
 
-target_code_hash <- hash()
-for(c in target_codes) {
-  target_code_hash[[as.character(c)]] <- TRUE
-}
-
-date_fields <- c('GetDate', 'ChargeCounterDate')
-date_field <- date_fields[[1]]
-
-# Wait an additional period for SC code data as up to date information for a machine, and the typical lag seems to be a few days.
-sc_data_buffer = 4
+date_field <- 'GetDate'
 
 # Number of trees to use for random forest
 #ntree = 1000
@@ -123,33 +116,15 @@ if(selected_features) {
 # SC Codes
 ################################################################################
 
-codes_all <- codesForRegionsAndModels(regions, models, parallel)
-# Filter SC codes to target codes
-code_dups <- duplicated(codes_all[,c('Serial', 'SC_CD', 'SC_SERIAL_CD', 'OCCUR_DATE')])
-codes_unique <- codes_all[!code_dups,]
-code_indices <- plapply(splitDataFrame(codes_unique), function(c) has.key(c$SC_CD, target_code_hash))
-codes <- codes_unique[unlist(code_indices),]
+codes <- readCodes(regions, device_models, target_codes, parallel=parallel)
+serial_to_codes <- makeSerialToCodes(codes)
 
 ################################################################################
 # Sample dataset
 ################################################################################
 
-all_data_files <- instancesForDir()
+file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days)
 
-# Restrict data set to days for which we have current SC code data, and a maximum of data_days
-sc_files <- filterBy(all_data_files, function(f) f$source=="SC")
-sc_files <- sortBy(sc_files, function(f) f$date)
-stopifnot(length(sc_files) > 0)
-latest_sc_file_date <- as.Date(last(sortBy(sc_files, function(f) f$date))$date)
-latest_data_file_date <- latest_sc_file_date - sc_code_days - sc_data_buffer
-filtered_data_files <- filterBy(
-  all_data_files,
-  function(f) {
-    as.Date(f$date) < latest_data_file_date &&
-      f$model %in% models
-  }
-)
-file_sets <- getDailyFileSets(filtered_data_files, sources)
 data_files <- unlist(file_sets[1:data_days])
 
 require(profvis)
@@ -169,135 +144,13 @@ predictors_all <- dataFilesToDataset(
 )
 predictors <- predictors_all
 
-
-################################################################################
-# Randomize predictor row and column order to mitigate any algorithmic bias
-################################################################################
-
-# Set Seed so that same sample can be reproduced in future
-set.seed(101) 
-
-# Randomize predictor row order
-predictors<-predictors[sample(nrow(predictors)),]
-# Randomize predictor column order
-predictors<-predictors[,sample(ncol(predictors))]
-
-################################################################################
-# Eliminate predictors where Count and PMCount data are out of sync
-################################################################################
-
-date_vals <- predictors[,date_fields]
-predictors <- predictors[date_vals[,date_fields[[1]]] == date_vals[,date_fields[[2]]],]
-
-################################################################################
-# Eliminate predictors with duplicate GetDate
-################################################################################
-
-dups <- duplicated(predictors[,c('Serial', 'GetDate')])
-predictors <- predictors[!dups,]
-
-################################################################################
-# Eliminate predictors with a single unique value
-################################################################################
-
-unique_val_counts <- sapply(predictors, function(c) length(unique(c)))
-# Drop predictors with one or more unique values
-predictors <- predictors[,unique_val_counts > 1]
-
-################################################################################
-# Convert replacement dates to relative values
-################################################################################
-
-if(relative_replacement_dates) {
-  replacement_date_col_names <- colnames(predictors)
-  replacement_date_cols <- replacement_date_col_names[grep('X.*replacement\\.date', replacement_date_col_names, ignore.case=T)]
-  
-  to_date <- function(x) {as.Date(as.character(x), '%y%m%d') %>% unlist}
-  date_cols <- predictors[,replacement_date_cols]
-  date_cols <- apply(date_cols, 2, to_date)
-  date_cols <- as.data.frame(date_cols)
-  # For some reason R automatically converts the date type to integer
-  date_cols <- as.numeric(predictors[,date_field]) - date_cols
-  predictors[,replacement_date_cols] <- date_cols
-}
+predictors <- cleanPredictors(predictors)
 
 ###############################################################################
 # Build list of matching code sets for each row
 ################################################################################
 
-serial_to_codes <- makeSerialToCodes(codes)
-
-getMatchingCodesForIndex <- function(i) {
-  row <- predictors[i, c("Serial", date_field)]
-  getMatchingCodes(
-    getWithDefault(serial_to_codes, row$Serial, list()),
-    row[,date_field],
-    sc_code_days
-  )
-}
-
-# Pass in only required values for efficiency
-matching_code_sets <- plapply(
-  1:nrow(predictors),
-  getMatchingCodesForIndex,
-  parallel=parallel
-)
-
-# Get the first instance of each SC code (works due to uniqueBy returning the last matching value)
-# Indexing by time would be ideal but probably not worth the added complexity.
-matching_code_sets_sorted <- plapply(
-  matching_code_sets,
-  function(cs) sortBy(cs, function(c) c$OCCUR_DATE, desc=TRUE),
-  parallel=parallel
-)
-
-matching_code_sets_unique <- plapply(
-  matching_code_sets_sorted,
-  function(cs) uniqueBy(cs, function(c) codeToLabel(c)),
-  parallel=parallel
-)
-
-
-###############################################################################
-# Build list of matching code sets for each row
-################################################################################
-
-label_to_row_indices <- hash()
-for(i in 1:nrow(predictors)) {
-  cs <- matching_code_sets_unique[[i]]
-  for (c in cs) {
-    label <- codeToLabel(c)
-    indices <- getWithDefault(label_to_row_indices, label, list())
-    label_to_row_indices[[label]] <- append(indices, i)
-  }
-}
-
-label_counts <- mapHash(label_to_row_indices, function(indices) length(indices))
-
-label_to_unique_serials <- mapHash(
-  label_to_row_indices,
-  function(row_indices) {
-    unique(predictors$Serial[unlist(row_indices)])
-  }
-)
-
-###############################################################################
-# Get labels for codes that meet the required threshold for instances
-################################################################################
-
-label_to_serial_count <- mapHash(label_to_unique_serials, function(serials) length(serials))
-
-label_to_count_and_unqiues <- mapHashWithKeys(
-  label_counts,
-  function(label, count) c(count, label_to_serial_count[[label]])
-)
-
-# Use geometric mean of observation count and number of unqiue serials as a figure of merit
-label_to_priority <- mapHash(label_to_count_and_unqiues, geomMean)
-#label_to_priority <- label_to_serial_count
-
-top_labels <- tail(sortBy(label_to_priority, function(x) x[[1]]), max_models)
-used_labels <- names(top_labels)
+matching_code_sets_unique <- getMatchingCodeSets(predictors, serial_to_codes)
 
 ################################################################################
 # Add predictors for historical SC codes
@@ -488,16 +341,6 @@ test_data <- predictors_eligible[test_vector,]
 test_responses <- responses[test_vector,]
 
 evaluateModelSet(models, test_data, test_responses)
-
-################################################################################
-# Predict with first partial test set
-################################################################################
-# 
-# split_vector1 <- split_fs[["timeSplit"]](predictors, frac=.925)
-# split_vector2 <- split_fs[["timeSplit"]](predictors, frac=.95)
-# test_data1 <- data[!split_vector & split_vector1,]
-# test_data1a <- data[!split_vector & !split_vector1 & split_vector2,]
-# test_data2 <- data[!split_vector & !split_vector1,]
 
 
 ################################################################################
