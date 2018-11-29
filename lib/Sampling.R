@@ -216,8 +216,9 @@ makeInstanceCounter <- function(codes, ...) {
   return(res)
 }
 
-dailyFileSetsToDataframe <- function(daily_file_sets, features=features) {
-  parts <- lapply(daily_file_sets, function(fs) dataFilesToDataframe(fs, features=features))
+dailyFileSetToDataframe <- function(daily_file_set, features=features) {
+  print(daily_file_set)
+  parts <- lapply(daily_file_set, function(fs) dataFilesToDataframe(fs, features=features))
   df <- bindRowsForgiving(parts)
   # Set row names to Serial
   row.names(df) <- unlist(df[,'Serial'])
@@ -232,13 +233,15 @@ visitPredictorDataframes <- function(data_files, required_sources, f, features=F
   gc(verbose=FALSE, full=TRUE)
   visit <- function(date_string) {
     file_sets <- daily_file_sets[[date_string]]
+    print(date_string)
+    print(file_sets)
     date <- as.Date(date_string)
-    df <- dailyFileSetsToDataframe(file_sets, features=features)
+    df <- dailyFileSetToDataframe(file_sets, features=features)
     res <- f(df, date, daily_file_sets)
     return(res)
   }
   res <- plapply(keys(daily_file_sets), visit, parallel=parallel)
-  stopifnot(length(keys(daily_file_sets))==length(res))
+  assert(length(keys(daily_file_sets))==length(res))
   sampling_log$debug("Finished visiting dataframes")
   return(res)
 }
@@ -377,10 +380,8 @@ sampleDataFrame <- function(df, date, sample_rate, daily_file_sets, delta_days=c
   }
   # Filter to serials for which we have data 
   sampled_serials <- intersect(df$Serial, augmented$Serial)
-  n <- length(sampled_serials)
   res <- augmented[unlist(sampled_serials),]
   assert(is.data.frame(res))
-  assert(nrow(res)==n)
   return(res)
 }
 

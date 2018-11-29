@@ -1,6 +1,7 @@
 require(stringr)
 require(lubridate)
 require(R.utils)
+require(testit)
 
 source('lib/Util.R')
 source('lib/Parallel.R')
@@ -113,10 +114,11 @@ DataFile <- setRefClass("DataFile",
 
 # Class method to return merged dataframe from list of instances. Merge on Serial and FileDate and set row names to serial numbers.
 dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
+  assert(length(unique(instances))==length(instances))
   dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel=parallel)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
-    merge_on <- c("Serial", "FileDate")
+    merge_on <- c("Serial", "FileDate", "Model")
     for (frame in dataframes[2:length(dataframes)]) {
       res <- merge(res, frame, by.x = merge_on,by.y = merge_on)
     }
@@ -124,7 +126,7 @@ dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
   row.names(res) <- unlist(res[,'Serial'])
   if(!isFALSE(features)) {
     # TODO: handle deltas
-    additional <- c("Serial", "FileDate", "GetDate", "ChargeCounterDate")
+    additional <- c("Serial", "FileDate", "GetDate", "ChargeCounterDate", "Model")
     features <- append(fs, additional)
     fs <- intersect(colnames(res), features)
     res <- res[,unlist(fs)]
@@ -144,14 +146,18 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=Data
   if(identical(regions, NA)) {
     region_pattern <- '[^_]*'
   } else {
-    region_pattern <- paste(regions, sep='|')
+    region_pattern <- paste(regions, collapse='|', sep="")
   }
   if(identical(models, NA)) {
     model_pattern <- '[^_]*'
   } else {
-    model_pattern <- paste(models, sep='|')
+    model_pattern <- paste(models, collapse='|', sep="")
   }
-  pattern <- paste(region_pattern, model_pattern, sep='_')
+  pattern <- paste(
+    paste("(", region_pattern, ")", collapse="", sep=""),
+    paste("(", model_pattern, ")", collapse="", sep=""),
+    sep='_'
+  )
   paths <- list.files(directory,pattern=pattern, full.names=TRUE)
   paths <- sort(unlist(paths))
   res <- lapply(paths, function(path) cls(path=path))
@@ -193,7 +199,7 @@ getEligibleFileSets <- function(regions, models, sources, ...) {
   for(region in regions) {
     for(model in models) {
       files <- getEligibleModelDataFiles(region, model, sources, all_files=all_files, ...)
-      filtered_files <- append(all_files, files)
+      filtered_files <- append(filtered_files, files)
     }
   }
   

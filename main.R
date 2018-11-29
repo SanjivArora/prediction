@@ -42,10 +42,10 @@ library(profvis)
 data_days <- 1000
 
 # Fraction of observations to use
-sample_rate <- 0.3
+sample_rate <- 1
 
 # Build models for up to this many <SC>_<subcode> pairs
-max_models <- 15
+max_models <- 20
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14
@@ -71,9 +71,9 @@ regions = c(
 device_models= c(
   'E15',
   'E16'
-  # 'E17',
-  # 'E18',
-  # 'E19'
+  #'E17',
+  #'E18'
+  #'E19'
   # Exclude G models for now as counter names and SC subcodes differ 
   #'G69',
   #'G70'
@@ -93,8 +93,10 @@ parallel=TRUE
 #   900:999 # "C01 NOT FUNCTION AT ALL"  
 # )
 # Exclude 899
-#target_codes <- target_codes[target_codes != 899]
 target_codes <- 1:999
+exclude_codes <- c()
+#exclude_codes <- c(101, 681, 701, 792, 816, 899)
+target_codes <- target_codes[!(target_codes %in% exclude_codes)]
 
 date_field <- 'GetDate'
 
@@ -129,9 +131,6 @@ file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days)
 
 data_files <- unlist(file_sets[1:data_days])
 
-require(profvis)
-#profvis({
-
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
@@ -156,16 +155,16 @@ predictors <- cleanPredictors(predictors)
 print(paste(nrow(predictors), "total observations"))
 
 ###############################################################################
-# Choose labels for which we have the best combinations of observations and unique serials 
-################################################################################
-
-used_labels <- selectLabels(predictors)
-
-###############################################################################
 # Build list of matching code sets for each row
 ################################################################################
 
 matching_code_sets_unique <- getMatchingCodeSets(predictors, serial_to_codes)
+
+###############################################################################
+# Choose labels for which we have the best combinations of observations and unique serials 
+################################################################################
+
+used_labels <- selectLabels(predictors, matching_code_sets_unique, n=max_models)
 
 ################################################################################
 # Add predictors for historical SC codes
@@ -195,7 +194,6 @@ print(responsesToCounts(responses))
 ################################################################################
 
 split_type <- "timeSplit"
-
 splits <- splitPredictors(predictors, split_type, frac=training_frac, sc_code_days=sc_code_days, date_field=date_field)
 train_vector <- splits[['train']]
 test_vector <- splits[['test']]
@@ -208,7 +206,7 @@ train_data <- predictors_eligible[train_vector,]
 train_responses <- responses[train_vector,]
 
 # Train models in parallel as despite native threading support there are substantial serial sections
-models <- trainModelSet(used_labels, train_data, train_responses, parallel=parallel)
+models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel)
 
 test_data <- predictors_eligible[test_vector,]
 test_responses <- responses[test_vector,]
@@ -217,19 +215,17 @@ test_responses <- responses[test_vector,]
 # Evaluate performance
 ################################################################################
 
-evaluateModelSet(models, test_data, test_responses)
+stats <- evaluateModelSet(models, test_data, test_responses)
+candidate_stats <- getCandidateModelStats(stats)
+# evaluateModelSet(models[candidate_stats$label], test_data, test_responses)
 
-# extra_stats <- getExtraMultiLabelStats(pred, used_labels, counts)
-# print(extra_stats)
+for(label in candidate_stats$label) {
+  cat("\n\n")
+  print(paste("Importance for", label))
+  showModelFeatureImportance(models[[label]])
+}
 
-# 
-# if(importance) {
-#   for(label in label_names) {
-#     cat("\n\n")
-#     print(paste("Importance for", label))
-#     showModelFeatureImportance(mod$learner.model$next.model[[label]])
-#   }
-# }
+print(candidate_stats)
 
 ################################################################################
 # Save top features

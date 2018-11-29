@@ -1,5 +1,6 @@
 require(mlr)
 require(parallel)
+require(hash)
 
 source("lib/Logging.R")
 
@@ -32,7 +33,7 @@ calculateWeights <- function(responses, positive_share=1, control_share=1, paral
   return(weights)
 }
 
-trainLabel <- function(label, predictors, response, n_threads=NA) {
+trainLabel <- function(label, predictors, response, ntree=500, n_threads=NA) {
   model_log$debug(paste("Preparing to train", label))
   
   data <- bind_cols(predictors, response)
@@ -63,27 +64,35 @@ trainLabel <- function(label, predictors, response, n_threads=NA) {
   return(mod)
 }
 
-predictWith <- function(mod, predictors, response) {
-  label <- names(response)
-  model_log$info(paste("Predicting", label))
-  data <- bind_cols(predictors, response)
-  task <- makeClassifTask(data=data, target=label)
-  pred <- predict(mod, task)
+predictWith <- function(mod, predictors) {
+  pred <- predict(mod, newdata=predictors)
   return(pred)
 }
 
 # Responses must be a labeled dataframe
-trainModelSet <- function(labels, data, responses, parallel=TRUE) {
+trainModelSet <- function(labels, data, responses, ntree=500, parallel=TRUE) {
   model_log$info(paste("Training models for", length(labels), "labels"))
   n_threads <- max(1, ceiling(detectCores() / length(labels)))
   models <- plapply(
     labels, 
     function(l) {
-      trainLabel(l, train_data, train_responses[,l,drop=FALSE], n_threads=n_threads)
+      trainLabel(l, train_data, train_responses[,l,drop=FALSE], ntree=ntree, n_threads=n_threads)
     },
     parallel=parallel
   )
   res <- hash(labels, models)
+  return(res)
+}
+
+# models is a hash mapping labels to models
+predictModelSet <- function(models, predictors) {
+  labels <- keys(models)
+  model_log$info(paste("Predicting with models for", length(labels), "labels"))
+  predictions <- plapply(
+    values(models, simplify=FALSE),
+    function(model) predictWith(model, predictors)
+  )
+  res <- hash(labels, predictions)
   return(res)
 }
 

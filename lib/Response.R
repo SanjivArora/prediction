@@ -6,7 +6,7 @@ codeSetToLabels <- function(code_set) {
   return(res)
 }
 
-generateResponses <- function(matching_code_sets_unique, labels) {
+generateResponses <- function(matching_code_sets_unique, labels, parallel=TRUE) {
   responses_parts <- plapply(matching_code_sets_unique, codeSetToLabels, parallel=parallel)
   responses <-bindRowsForgiving(responses_parts)
   # Make R-standard names

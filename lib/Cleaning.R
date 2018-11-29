@@ -19,7 +19,7 @@ randomizeOrder <- function(predictors) {
 # Eliminate predictors where Count and PMCount data are out of sync
 filterDesynced <- function(predictors, date_fields=c('GetDate', 'ChargeCounterDate')) {
   date_vals <- predictors[,date_fields]
-  predictors <- predictors[date_vals[,date_fields[[1]]] == date_vals[,date_fields[[2]]],]
+  predictors <- predictors[date_vals[,1] == date_vals[,1],]
   return(predictors)
 }
 
