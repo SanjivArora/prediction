@@ -5,3 +5,4 @@
 *.swp
 config/auto_write.txt
 trained/
+predictions/

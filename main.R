@@ -149,7 +149,7 @@ predictors <- predictors_all
 # Clean and condition dataset
 ################################################################################
 
-predictors <- cleanPredictors(predictors)
+predictors <- cleanPredictors(predictors) %>% filterSingleValued
 
 # Stats for dataset
 print(paste(nrow(predictors), "total observations"))

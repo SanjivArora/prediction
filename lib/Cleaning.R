@@ -89,6 +89,5 @@ cleanPredictors <- function(predictors) {
     randomizeOrder %>%
     filterDesynced %>%
     filterDuplicates %>%
-    filterSingleValued %>%
     relativeReplacementDates
 }

@@ -50,8 +50,11 @@ source('lib/DataFile.R')
 # d <- SCFile(path="RNZ_E16_SC_20180714.csv")
 # x <- d$getDataFrame()
   
-codesFor <- function(f, latest_file_date=NA, parallel=TRUE) {
+codesFor <- function(f, earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {
   datafiles <- instancesForDir(cls=SCFile)
+  if(!identical(earliest_file_date, NA)) {
+    datafiles <- filterBy(datafiles, function(f) f$date >= earliest_file_date)
+  }
   if(!identical(latest_file_date, NA)) {
     datafiles <- filterBy(datafiles, function(f) f$date <= latest_file_date)
   }
@@ -61,7 +64,7 @@ codesFor <- function(f, latest_file_date=NA, parallel=TRUE) {
   return(res)
 }
 
-codesForRegionsAndModels <- function(regions, models, latest_file_date=NA, parallel=TRUE) {
-  res <- codesFor(function(f) {f$model %in% models && f$region %in% regions && f$source=='SC'}, latest_file_date=latest_file_date, parallel=parallel)
+codesForRegionsAndModels <- function(regions, models, earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {
+  res <- codesFor(function(f) {f$model %in% models && f$region %in% regions && f$source=='SC'}, earliest_file_date=earliest_file_date, latest_file_date=latest_file_date, parallel=parallel)
   return(res)
 }

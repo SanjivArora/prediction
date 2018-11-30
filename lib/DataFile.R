@@ -164,10 +164,13 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=Data
   return(res)
 }
 
-getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, sc_data_buffer=4, latest_file_date=NA, all_files=NA) {
+getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, sc_data_buffer=4, earliest_file_date=NA, latest_file_date=NA, all_files=NA) {
   # Don't use is.na here as it generates a warning message when used with a vector
   if(identical(all_files, NA)) {
     all_files <- instancesForDir()
+  }
+  if(!identical(earliest_file_date, NA)) {
+    all_files <- filterBy(all_files, function(f) f$date >= earliest_file_date)
   }
   if(!identical(latest_file_date, NA)) {
     all_files <- filterBy(all_files, function(f) f$date <= latest_file_date)
@@ -186,7 +189,7 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
   filtered_data_files <- filterBy(
     all_files,
     function(f) {
-      as.Date(f$date) < latest_data_file_date &&
+      as.Date(f$date) <= latest_data_file_date &&
       f$region == region &&
       f$model == model &&
       f$source %in% sources

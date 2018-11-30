@@ -40,8 +40,8 @@ library(profvis)
 
 
 # Date of latest data files to use
-latest_file_date <- as.Date("2018-09-01")
-#latest_file_date <- NA
+#latest_file_date <- as.Date("2018-09-01")
+latest_file_date <- NA
 
 
 # Number of days of predictor data files to use for training
@@ -92,8 +92,8 @@ target_codes <- target_codes[!(target_codes %in% exclude_codes)]
 date_field <- 'GetDate'
 
 # Number of trees to use for random forest
-#ntree = 1000
-ntree = 500
+ntree = 1000
+#ntree = 500
 
 relative_replacement_dates <- TRUE
 
@@ -140,7 +140,7 @@ predictors <- predictors_all
 # Clean and condition dataset
 ################################################################################
 
-predictors <- cleanPredictors(predictors)
+predictors <- cleanPredictors(predictors) %>% filterSingleValued
 
 # Stats for dataset
 print(paste(nrow(predictors), "total observations"))
@@ -192,8 +192,7 @@ models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, p
 
 # Save trained model(s)
 model_dir <- 'trained'
-mode_filename <- 'model'
-mkdir(model_dir)
+model_filename <- 'model'
+mkdirs(model_dir)
 model_path <- file.path(model_dir, model_filename)
 saveRDS(models, model_path)
-
