@@ -50,15 +50,18 @@ source('lib/DataFile.R')
 # d <- SCFile(path="RNZ_E16_SC_20180714.csv")
 # x <- d$getDataFrame()
   
-codesFor <- function(f, parallel=TRUE) {
+codesFor <- function(f, latest_file_date=NA, parallel=TRUE) {
   datafiles <- instancesForDir(cls=SCFile)
+  if(!identical(latest_file_date, NA)) {
+    datafiles <- filterBy(datafiles, function(f) f$date <= latest_file_date)
+  }
   datafiles <- filterBy(datafiles, f)
   dfs <- plapply(datafiles, function (x) x$getDataFrame(), parallel=parallel)
   res <- distinct(bindRowsForgiving(dfs))
   return(res)
 }
 
-codesForRegionsAndModels <- function(regions, models, parallel=TRUE) {
-  res <- codesFor(function(f) f$model %in% models && f$region %in% regions && f$source=='SC', parallel=parallel)
+codesForRegionsAndModels <- function(regions, models, latest_file_date=NA, parallel=TRUE) {
+  res <- codesFor(function(f) {f$model %in% models && f$region %in% regions && f$source=='SC'}, latest_file_date=latest_file_date, parallel=parallel)
   return(res)
 }
