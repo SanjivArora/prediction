@@ -197,7 +197,7 @@ predictors_eligible <- predictors_eligible[,model_features]
 # Make predictions
 ################################################################################
 
-predictions <- predictModelSet(models, predictors_eligible, parallel=parallel)
+predictions <- predictModelSet(models, predictors_eligible, parallel=FALSE)
 hits <- mapHash(predictions, function(p) p$data[p$data$prob.TRUE>0.8,])
 
 

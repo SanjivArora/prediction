@@ -52,7 +52,7 @@ readCodes <- function(regions, models, target_codes=list(1:999), earliest_file_d
 }
 
 # Get a list of unique matching codes for each observation
-getMatchingCodeSets <- function(predictors, serial_to_codes, date_field='GetDate') {
+getMatchingCodeSets <- function(predictors, serial_to_codes, date_field='GetDate', sc_code_days=14, parallel=TRUE) {
   getMatchingCodesForIndex <- function(i) {
     row <- predictors[i, c("Serial", date_field)]
     getMatchingCodes(

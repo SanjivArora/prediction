@@ -10,6 +10,7 @@ source('lib/Feature.R')
 base_path="~/data/"
 timezone="UTC"
 
+data_log <- getModuleLogger("Model")
 
 # CSV @Remote data file, if path is not absolute then interpret it as relative to base_path
 DataFile <- setRefClass("DataFile",
@@ -72,10 +73,16 @@ DataFile <- setRefClass("DataFile",
         Serial = as.character(Serial)
       )
       df[,date_field] <- as.Date(df[,date_field])
+      if(nrow(df)==0) {
+        data_log$warn(paste("Reading dataframe from file with no data:", .self$path))
+      }
       # We don't know the precise timing of acquisition with respect to file naming and international datelines, so allow +1 day, -3 days.
       if(filter_outdated) {
         valid_dates <- .self$date - lubridate::days(-1:3)
         df <- df[df[,date_field] %in% valid_dates,]
+        if(nrow(df)==0) {
+          data_log$warn(paste("File contains no current data:", .self$path))
+        }
       }
       # Rewrite serial as concatenation of model and partial serial (i.e. as actual serial)
       df$Serial <- paste(df$Model, df$Serial, sep="")
@@ -114,8 +121,9 @@ DataFile <- setRefClass("DataFile",
 
 # Class method to return merged dataframe from list of instances. Merge on Serial and FileDate and set row names to serial numbers.
 dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
+  data_log$debug(paste("Getting data file for", length(instances), "instances"))
   assert(length(unique(instances))==length(instances))
-  dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel=parallel)
+  dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel=FALSE)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
     merge_on <- c("Serial", "FileDate", "Model")
@@ -131,6 +139,13 @@ dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
     fs <- intersect(colnames(res), features)
     res <- res[,unlist(fs)]
   }
+  if(nrow(res)==0) {
+    data_log$warn(
+      paste("Empty dataframe from the following set of files:",
+            paste(lapply(instances, function(f) f$path), collapse=",")
+      )
+    )
+  } 
   return(res)
 }
 

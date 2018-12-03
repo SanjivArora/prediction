@@ -35,9 +35,6 @@ sources=c('PMCount', 'Count')
 feature_files <- c('top.txt')
 selected_features <- FALSE
 
-library(profvis)
-#profvis({
-
 # Number of days of predictor data files to use for training
 data_days <- 1000
 
