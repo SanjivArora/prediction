@@ -135,9 +135,9 @@ dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
   if(!isFALSE(features)) {
     # TODO: handle deltas
     additional <- c("Serial", "FileDate", "GetDate", "ChargeCounterDate", "Model")
-    features <- append(fs, additional)
-    fs <- intersect(colnames(res), features)
-    res <- res[,unlist(fs)]
+    features <- append(features, additional)
+    features <- intersect(colnames(res), features)
+    res <- res[,unlist(features)]
   }
   if(nrow(res)==0) {
     data_log$warn(

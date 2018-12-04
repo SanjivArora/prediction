@@ -79,7 +79,7 @@ preds$FileDate <- as.Date(preds$FileDate)
 # Get codes
 ################################################################################
 
-codes <- readCodes(regions, device_models, target_codes, parallel=parallel)
+codes <- readCodes(regions, device_models, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
 
 ################################################################################
@@ -88,12 +88,9 @@ serial_to_codes <- makeSerialToCodes(codes)
 
 matching <- getMatchingCodeSets(preds, serial_to_codes, date_field=date_field, sc_code_days=.Machine$integer.max, parallel=FALSE)
 preds$all <- matching
-preds$matching_code_date <- NA
-preds$first_code_date <- NA
-preds$first_code <- NA
 
 code_dates <- list()
-first_code_date <- list()
+first_code_dates <- list()
 first_codes <- list()
 for(r in splitDataFrame(preds)) {
   cs <- r$all[[1]]
@@ -112,8 +109,14 @@ for(r in splitDataFrame(preds)) {
   }
   code_dates <- append(code_dates, code_date)
   first_codes <- append(first_codes, first_code)
-  first_code_date <- append(first_code_date, first_code_date)
+  first_code_dates <- append(first_code_dates, first_code_date)
 }
-preds$code_date <- unlist(code_dates)
-preds$first_codes <- unlist(first_codes)
-preds$first_code_date <- unlist(first_code_dates)
+# Drop list of code objects
+preds <- preds[,names(preds)!='all']
+preds$CodeDate <- unlist(code_dates)
+preds$Elapsed <- preds$CodeDate - preds$GetDate
+preds$FirstCode <- unlist(first_codes)
+preds$FirstCodeDate <- unlist(first_code_dates)
+
+
+print(preds)

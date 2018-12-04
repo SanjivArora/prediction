@@ -130,7 +130,7 @@ serial_to_codes <- makeSerialToCodes(codes)
 # Get files, as we are predicting service codes we naturally don't want to wait for SC data to be available
 file_sets <- getEligibleFileSets(regions, device_models, sources, earliest_file_date=earliest_file_date, latest_file_date=latest_file_date, sc_code_days=0, sc_data_buffer=0)
 
-data_files <- unlist(file_sets[1:data_days])
+data_files <- unlist(file_sets)
 
 predictors_all <- dataFilesToDataset(
   data_files,
@@ -141,7 +141,6 @@ predictors_all <- dataFilesToDataset(
   delta_days=delta_days,
   deltas=deltas,
   only_deltas=only_deltas,
-  features=fs,
   parallel=parallel
 )
 predictors <- predictors_all
