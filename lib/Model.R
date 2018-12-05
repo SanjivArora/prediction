@@ -89,13 +89,14 @@ trainModelSet <- function(labels, data, responses, ntree=500, parallel=TRUE, nco
 }
 
 # models is a hash mapping labels to models
-predictModelSet <- function(models, predictors, parallel=TRUE) {
+predictModelSet <- function(models, predictors, parallel=TRUE, ncores=NA) {
   labels <- keys(models)
   model_log$info(paste("Predicting with models for", length(labels), "labels"))
   predictions <- plapply(
     values(models, simplify=FALSE),
     function(model) predictWith(model, predictors),
-    parallel=parallel
+    parallel=parallel,
+    ncores=ncores
   )
   res <- hash(labels, predictions)
   return(res)

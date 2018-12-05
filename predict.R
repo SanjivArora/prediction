@@ -200,7 +200,7 @@ predictions <- predictModelSet(
   models,
   predictors_eligible,
   parallel=FALSE,
-  ncores-max(1, detectCores() / 4)
+  ncores=max(1, detectCores() / 4)
 )
 hits <- mapHash(predictions, function(p) p$data[p$data$prob.TRUE>0.8,])
 
