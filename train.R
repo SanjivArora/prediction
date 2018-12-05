@@ -4,6 +4,7 @@ require(mlr)
 require(itertools)
 require(forcats)
 require(magrittr)
+require(parallel)
 
 # MemoiseCache must be loaded first
 debugSource("lib/Parallel.R")
@@ -187,8 +188,8 @@ print(responsesToCounts(responses))
 train_data <- predictors_eligible
 train_responses <- responses
 
-# Train models in parallel as despite native threading support there are substantial serial sections
-models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel)
+# Train models in parallel as despite native threading support there are substantial serial sections. Limit number of threads to keep memory usage in check.
+models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel, ncores=(max(1, detectCores() / 8)))
 
 # Save trained model(s)
 model_dir <- 'trained'

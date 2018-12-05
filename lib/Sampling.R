@@ -226,7 +226,7 @@ dailyFileSetToDataframe <- function(daily_file_set, features=features) {
 }
 
 # Call function for each day with the date and a hash mapping date strings to valid datafile sets. Run this in parallel over models and sources.
-visitPredictorDataframes <- function(data_files, required_sources, f, features=FALSE, parallel=FALSE) {
+visitPredictorDataframes <- function(data_files, required_sources, f, features=FALSE, parallel=FALSE, ncores=NA) {
   daily_file_sets <- getDailyFileSetsHash(data_files, required_sources)
   sampling_log$debug(paste("Visiting", length(daily_file_sets), "daily data frames"))
   # Run garbage collection to minimize duplicated work in children
@@ -240,7 +240,7 @@ visitPredictorDataframes <- function(data_files, required_sources, f, features=F
     res <- f(df, date, daily_file_sets)
     return(res)
   }
-  res <- plapply(keys(daily_file_sets), visit, parallel=parallel)
+  res <- plapply(keys(daily_file_sets), visit, parallel=parallel, ncores=ncores)
   assert(length(keys(daily_file_sets))==length(res))
   sampling_log$debug("Finished visiting dataframes")
   return(res)
@@ -394,7 +394,12 @@ dataFilesToDataset <- function(data_files,
                                deltas=TRUE,
                                only_deltas=TRUE,
                                features=FALSE,
-                               parallel=TRUE) {
+                               parallel=TRUE,
+                               ncores=NA) {
+  # This is a memory-intensive operation so limit parallalism
+  if(identical(ncores, NA)) {
+    ncores <- (max(1, detectCores() / 4))
+  }
   parts <- visitPredictorDataframes(
     data_files,
     required_sources,
@@ -404,7 +409,8 @@ dataFilesToDataset <- function(data_files,
       sampleDataFrame(df, date, sample_rate, daily_file_sets, delta_days, deltas, only_deltas)
     },
     features=features,
-    parallel=parallel
+    parallel=parallel,
+    ncores=ncores
   )
   # Filter out results for days without required data to generate deltas
   filtered_parts <- filterBy(parts, function(p) is.data.frame(p))

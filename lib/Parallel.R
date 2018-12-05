@@ -4,12 +4,15 @@ source("lib/Logging.R")
 
 parallel_log <- getModuleLogger("Parallel")
 
-# Tradeoff with sampling memory consumption
-ncores = detectCores() / 3
+# Default to number of physical cores, assuming 2-way hyperthreading
+default_ncores = max(1, (detectCores() / 2) - 1)
 
 # Wrap parallel lapply implementation to allow easy debugging and change of backend
-plapply <- function(l, f, parallel=TRUE) {
+plapply <- function(l, f, parallel=TRUE, ncores=NA) {
   if(parallel) {
+    if(identical(ncores, NA)) {
+      ncores <- default_ncores
+    }
     results <- mclapply(l, f, mc.cores=ncores, mc.cleanup=TRUE)
     have_errors <- filterBy(results, function(r) attributes(r)$class=="try-error")
     if(length(have_errors) > 0) {
