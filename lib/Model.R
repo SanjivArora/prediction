@@ -70,15 +70,19 @@ predictWith <- function(mod, predictors) {
 }
 
 # Responses must be a labeled dataframe
-trainModelSet <- function(labels, data, responses, ntree=500, parallel=TRUE) {
+trainModelSet <- function(labels, data, responses, ntree=500, parallel=TRUE, ncores=NA) {
   model_log$info(paste("Training models for", length(labels), "labels"))
-  n_threads <- max(1, ceiling(detectCores() / length(labels)))
+  if(identical(ncores, NA)) {
+    ncores <- detectCores()
+  }
+  n_threads <- max(1, ceiling(detectCores() / min(ncores, length(labels))))
   models <- plapply(
     labels, 
     function(l) {
       trainLabel(l, train_data, train_responses[,l,drop=FALSE], ntree=ntree, n_threads=n_threads)
     },
-    parallel=parallel
+    parallel=parallel,
+    ncores=ncores
   )
   res <- hash(labels, models)
   return(res)

@@ -188,7 +188,8 @@ print(responsesToCounts(responses))
 train_data <- predictors_eligible
 train_responses <- responses
 
-# Train models in parallel as despite native threading support there are substantial serial sections. Limit number of threads to keep memory usage in check.
+# Train models in parallel as despite native threading support there are substantial serial sections.
+# Limit number of threads to keep memory usage in check, however each model will be trained with a full share of cores.
 models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel, ncores=(max(1, detectCores() / 8)))
 
 # Save trained model(s)
