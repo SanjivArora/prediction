@@ -62,22 +62,26 @@ replaceNA <-function(data){
 }
 
 # filterInelible is special - it strips serial numbers. Consequently we don't do this in cleanPredictors.
-filterIneligible <- function(predictors, string_factors=FALSE) {
-  res <- predictors
-  char_cols <- unlist(lapply(res, is.character))
-  if(string_factors) {
-    # Strings to factors
-    res[,char_cols] <- lapply(res[,char_cols], as.factor)
-    # Exclude Serial
-    res <- select(res, -Serial)
-  } else {
-    res <- res[,!char_cols]
+# If string_factors is true, convert all strings to factors and include them in the result.
+filterIneligible <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE) {
+  # Convert characters to factors if so specified
+  char_cols <- unlist(lapply(predictors, is.character))
+  if(isTRUE(string_factors)) {
+    string_factors <- char_cols
   }
+  factors <- sapply(predictors[,string_factors], as.factor)
   # Make NA a factor level named None
-  factor_cols <- unlist(lapply(res, is.factor))
-  res[,factor_cols] <- lapply(res[,factor_cols], function(x) fct_explicit_na(x, na_level="None"))
-  # Exclude dates
-  res <- res[, !unlist(lapply(res, is.Date))]
+  factors <- sapply(factors, function(x) fct_explicit_na(x, na_level="None"))
+  res <- predictors[,!char_cols]
+  res[,string_factors] <- factors
+  
+  # Exclude nominated columns
+  res <- res[,!colnames(res) %in% exclude_cols]
+
+  if(exclude_dates) {
+    res <- res[, !unlist(lapply(res, is.Date))]
+  }
+  
   # Replace NAs with default numerical value
   res <- replaceNA(res)
   return(res)

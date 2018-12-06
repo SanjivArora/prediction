@@ -2,6 +2,7 @@ require(stringr)
 require(lubridate)
 require(R.utils)
 require(testit)
+require(utils)
 
 source('lib/Util.R')
 source('lib/Parallel.R')
@@ -41,9 +42,9 @@ DataFile <- setRefClass("DataFile",
     },
     getDate = function() {.self$test},
     getFullPath = function() {joinPaths(base_path, path)},
-    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE) {
+    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA")) {
       # Use as.is to disable representing values as factors
-      df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=c("","NA"), as.is=TRUE)
+      df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=na_strings, as.is=TRUE)
       if(is.na(date_field)) {
         # Use the first field matching default_date_fields
         for(name in names(df)) {
@@ -67,6 +68,8 @@ DataFile <- setRefClass("DataFile",
       }
       valid_dates <- lapply(df[,date_field], check_date_string)
       df <- df[unlist(valid_dates),]
+      # Now that we have removed problem row, infer types
+      df <- type.convert(df, as.is=TRUE, na.strings=na_strings)
       #Force required types
       df <- transform(
         df,
@@ -74,7 +77,7 @@ DataFile <- setRefClass("DataFile",
       )
       df[,date_field] <- as.Date(df[,date_field])
       if(nrow(df)==0) {
-        data_log$warn(paste("Reading dataframe from file with no data:", .self$path))
+        data_log$warn(paste("Reading dataframe from file with no valid data:", .self$path))
       }
       # We don't know the precise timing of acquisition with respect to file naming and international datelines, so allow +1 day, -3 days.
       if(filter_outdated) {

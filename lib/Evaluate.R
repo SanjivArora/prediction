@@ -66,8 +66,8 @@ getCandidateModelStats <- function(stats) {
   return(res)
 }
 
-evaluateModelSet <- function(models, predictors, responses) {
-  predictions <- predictModelSet(models, predictors)
+evaluateModelSet <- function(models, predictors, responses, parallel=TRUE, ncores=NA) {
+  predictions <- predictModelSet(models, predictors, parallel=parallel, ncores=ncores)
   
   ps <- values(predictions, simplify=FALSE)
   probs <- lapply(ps, function(pred) pred$data$prob.TRUE)

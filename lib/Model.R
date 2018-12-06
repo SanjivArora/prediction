@@ -72,8 +72,9 @@ predictWith <- function(mod, predictors) {
 # Responses must be a labeled dataframe
 trainModelSet <- function(labels, data, responses, ntree=500, parallel=TRUE, ncores=NA) {
   model_log$info(paste("Training models for", length(labels), "labels"))
+  # Training is memory intensive, limit the number of models we train simultaneously
   if(identical(ncores, NA)) {
-    ncores <- detectCores()
+    ncores <- detectCores() / 16
   }
   n_threads <- max(1, ceiling(detectCores() / min(ncores, length(labels))))
   models <- plapply(

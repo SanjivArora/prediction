@@ -52,7 +52,7 @@ data_days <- 1000
 sample_rate <- 1
 
 # Build models for up to this many <SC>_<subcode> pairs
-max_models <- 20
+max_models <- 16
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14

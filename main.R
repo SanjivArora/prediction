@@ -42,7 +42,7 @@ data_days <- 1000
 sample_rate <- 1
 
 # Build models for up to this many <SC>_<subcode> pairs
-max_models <- 20
+max_models <- 16
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14
@@ -69,7 +69,7 @@ device_models= c(
   'E15',
   'E16'
   #'E17',
-  #'E18'
+  #'E18',
   #'E19'
   # Exclude G models for now as counter names and SC subcodes differ 
   #'G69',
@@ -175,7 +175,7 @@ if(historical_sc_predictors) {
 # Restrict to valid numeric values
 ################################################################################
 
-predictors_eligible <- filterIneligible(predictors, string_factors=FALSE)
+predictors_eligible <- filterIneligible(predictors, string_factors=c('Model'))
 
 ################################################################################
 # Generate responses
