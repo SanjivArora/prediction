@@ -113,9 +113,9 @@ processRomVer <- function(predictors) {
   clean_log$debug("Processing RomVer values")
   # Take semi-numeric firmware versions
   ver_idxs <- grepl('RomVer_VER_.*', names(predictors))
+  ver_idxs <- which(ver_idxs)
   ver_names <- names(predictors)[ver_idxs]
-  vers <- predictors[ver_idxs]
-  vers <- apply(vers, 2, verToInt)
+  vers <- plapply(ver_idxs, function(i) lapply(predictors[,i], verToInt) %>% unlist)
   res <- predictors[!grepl('RomVer_.*', names(predictors))]
   res[ver_names] <- vers
   return(res)

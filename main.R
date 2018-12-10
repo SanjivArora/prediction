@@ -141,13 +141,12 @@ predictors_all <- dataFilesToDataset(
   features=fs,
   parallel=parallel
 )
-predictors <- predictors_all
 
 ###############################################################################
 # Clean and condition dataset
 ################################################################################
 
-predictors <- cleanPredictors(predictors) %>% filterSingleValued
+predictors <- cleanPredictors(predictors_all) %>% filterSingleValued
 
 # Stats for dataset
 print(paste(nrow(predictors), "total observations"))
