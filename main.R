@@ -4,6 +4,7 @@ require(mlr)
 require(itertools)
 require(forcats)
 require(magrittr)
+require(plotly)
 
 # MemoiseCache must be loaded first
 debugSource("lib/Parallel.R")
@@ -29,7 +30,7 @@ debugSource("lib/Split.R")
 
 
 #sources=c('Count', 'PMCount', 'Jam')
-sources=c('PMCount', 'Count') 
+sources=c('PMCount', 'Count', 'RomVer') 
 #sources=c('PMCount') 
 
 feature_files <- c('top.txt')
@@ -42,10 +43,10 @@ data_days <- 1000
 sample_rate <- 1
 
 # Build models for up to this many <SC>_<subcode> pairs
-max_models <- 16
+max_models <- 18
 
 # Maximum number of days to predict SC code
-sc_code_days <- 14
+sc_code_days <- 7
 #sc_code_days=2
 
 # Offsets to use for generating deltas for numerical data
@@ -175,7 +176,7 @@ if(historical_sc_predictors) {
 # Restrict to valid numeric values
 ################################################################################
 
-predictors_eligible <- filterIneligible(predictors, string_factors=c('Model'))
+predictors_eligible <- filterIneligible(predictors, string_factors=c(), exclude_cols=c('Serial'))
 
 ################################################################################
 # Generate responses
@@ -212,7 +213,7 @@ test_responses <- responses[test_vector,]
 # Evaluate performance
 ################################################################################
 
-stats <- evaluateModelSet(models, test_data, test_responses)
+stats <- evaluateModelSet(models, test_data, test_responses, parallel=F)
 candidate_stats <- getCandidateModelStats(stats)
 # evaluateModelSet(models[candidate_stats$label], test_data, test_responses)
 
@@ -224,9 +225,17 @@ for(label in candidate_stats$label) {
 
 print(candidate_stats)
 
+#evaluateModelSet(models[candidate_stats$label], test_data, test_responses, parallel=parallel)
+
 ################################################################################
 # Save top features
 ################################################################################
 
 # top_features <- topMultilabelModelFeatures(mod, frac=0.4)
 # writeFeatures(row.names(top_features), "top.txt")
+
+################################################################################
+# Misc
+################################################################################
+
+#plotLatency(predictors_all)

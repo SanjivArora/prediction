@@ -4,8 +4,11 @@
 
 require(magrittr)
 
+clean_log <- getModuleLogger("Model")
+
 # Randomize predictor row and column order to mitigate any algorithmic bias
 randomizeOrder <- function(predictors) {
+  clean_log$debug("Randomizing predictor order")
   # Set Seed so that same sample can be reproduced in future
   set.seed(101) 
   
@@ -18,6 +21,7 @@ randomizeOrder <- function(predictors) {
 
 # Eliminate predictors where Count and PMCount data are out of sync
 filterDesynced <- function(predictors, date_fields=c('GetDate', 'ChargeCounterDate')) {
+  clean_log$debug("Filtering desyncrhonized observations")
   date_vals <- predictors[,date_fields]
   predictors <- predictors[date_vals[,1] == date_vals[,1],]
   return(predictors)
@@ -25,6 +29,7 @@ filterDesynced <- function(predictors, date_fields=c('GetDate', 'ChargeCounterDa
 
 # Eliminate predictors with duplicate GetDate
 filterDuplicates <- function(predictors) {
+  clean_log$debug("Filtering duplicate observations")
   dups <- duplicated(predictors[,c('Serial', 'GetDate')])
   predictors <- predictors[!dups,]
   return(predictors)
@@ -32,6 +37,7 @@ filterDuplicates <- function(predictors) {
 
 # Eliminate predictors with a single unique value
 filterSingleValued <- function(predictors) {
+  clean_log$debug("Filtering single valued observations")
   unique_val_counts <- sapply(predictors, function(c) length(unique(c)))
   # Drop predictors with one or more unique values
   predictors <- predictors[,unique_val_counts > 1]
@@ -40,6 +46,7 @@ filterSingleValued <- function(predictors) {
 
 # Convert replacement dates to relative values
 relativeReplacementDates <- function(predictors) {
+  clean_log$debug("Making replacement dates relative")
   replacement_date_col_names <- colnames(predictors)
   replacement_date_cols <- replacement_date_col_names[grep('X.*replacement\\.date', replacement_date_col_names, ignore.case=T)]
   
@@ -54,6 +61,7 @@ relativeReplacementDates <- function(predictors) {
 }
 
 replaceNA <-function(data){
+  clean_log$debug("Replacing NAs")
   temp <- as.data.frame(data)
   # Using an extreme value works well with decision tree methods as it is readily excluded without affecting the normal range
   # Divide by 4 to avoid integer overflow in later processing
@@ -64,14 +72,15 @@ replaceNA <-function(data){
 # filterInelible is special - it strips serial numbers. Consequently we don't do this in cleanPredictors.
 # If string_factors is true, convert all strings to factors and include them in the result.
 filterIneligible <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE) {
+  clean_log$debug("Filtering ineligible observations")
   # Convert characters to factors if so specified
   char_cols <- unlist(lapply(predictors, is.character))
   if(isTRUE(string_factors)) {
     string_factors <- char_cols
   }
-  factors <- sapply(predictors[,string_factors], as.factor)
+  factors <- lapply(predictors[string_factors], as.factor)
   # Make NA a factor level named None
-  factors <- sapply(factors, function(x) fct_explicit_na(x, na_level="None"))
+  factors <- lapply(factors, function(x) fct_explicit_na(x, na_level="None"))
   res <- predictors[,!char_cols]
   res[,string_factors] <- factors
   
@@ -87,11 +96,37 @@ filterIneligible <- function(predictors, string_factors=c("Model"), exclude_cols
   return(res)
 }
 
+verToInt <- function(ver) {
+  x <- gsub('[^0-9]', '.', ver, perl=TRUE)
+  parts <- strsplit(x, '\\.')[[1]]
+  parts <- lapply(parts, function(x) sub('', '0', x))
+  parts <- lapply(parts, as.integer)
+  parts <- lapply(parts, function(x) formatC(x, width = 3, format = "d", flag = "0"))
+  s <- paste(parts, collapse='', sep='')
+  res <- as.integer(s)
+  return(res)
+}
+
+# Convert version string to integer, attempting as far as possible to preserve ordering
+# Supports a maximum of three segments in the version string as we zero-pad to three digits and the maximum integer is 10 digit
+processRomVer <- function(predictors) {
+  clean_log$debug("Processing RomVer values")
+  # Take semi-numeric firmware versions
+  ver_idxs <- grepl('RomVer_VER_.*', names(predictors))
+  ver_names <- names(predictors)[ver_idxs]
+  vers <- predictors[ver_idxs]
+  vers <- apply(vers, 2, verToInt)
+  res <- predictors[!grepl('RomVer_.*', names(predictors))]
+  res[ver_names] <- vers
+  return(res)
+}
+
 # Includes everything but filterIneligible
 cleanPredictors <- function(predictors) {
   predictors %>%
     randomizeOrder %>%
     filterDesynced %>%
     filterDuplicates %>%
-    relativeReplacementDates
+    relativeReplacementDates %>%
+    processRomVer
 }

@@ -42,7 +42,7 @@ DataFile <- setRefClass("DataFile",
     },
     getDate = function() {.self$test},
     getFullPath = function() {joinPaths(base_path, path)},
-    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA")) {
+    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=3) {
       # Use as.is to disable representing values as factors
       df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=na_strings, as.is=TRUE)
       if(is.na(date_field)) {
@@ -81,7 +81,7 @@ DataFile <- setRefClass("DataFile",
       }
       # We don't know the precise timing of acquisition with respect to file naming and international datelines, so allow +1 day, -3 days.
       if(filter_outdated) {
-        valid_dates <- .self$date - lubridate::days(-1:3)
+        valid_dates <- .self$date - lubridate::days(-1:max_data_age)
         df <- df[df[,date_field] %in% valid_dates,]
         if(nrow(df)==0) {
           data_log$warn(paste("File contains no current data:", .self$path))
@@ -129,8 +129,10 @@ dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
   dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel=FALSE)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
-    merge_on <- c("Serial", "FileDate", "Model")
+    merge_on_candidates <- c("Serial", "FileDate", "Model", "GetDate")
     for (frame in dataframes[2:length(dataframes)]) {
+      merge_on <- intersect(names(res), names(frame))
+      merge_on <- intersect(merge_on, merge_on_candidates)
       res <- merge(res, frame, by.x = merge_on,by.y = merge_on)
     }
   }

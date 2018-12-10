@@ -5,13 +5,13 @@ require(magrittr)
 
 source('lib/Util.R')
 
-# Extract feature importance dataframes for MLR multilabel model
+# Extract feature importance dataframes for dictionary of mlr models
 # Return a named list where values are single column dataframes where rows are named for features
-getMultilabelFeatureImportance <- function(mod) {
-  submodels <- mod$learner.model$next.model
+getMultilabelFeatureImportance <- function(models) {
   res <- list()
-  for(l in names(submodels)) {
-    x <- getFeatureImportance(submodels[[l]])$res
+  for(l in keys(models)) {
+    m <- models[[l]]
+    x <- getFeatureImportance(m)$res
     x <- t(x)
     x <- x[order(x, decreasing=TRUE),]
     res[[l]] <- as.data.frame(x)
@@ -47,6 +47,6 @@ featureImportanceSums <- function(fs) {
   return(res)
 }
 
-topMultilabelModelFeatures <- function(mod, frac=0.1) {
+topModelsFeatures <- function(mod, frac=0.1) {
   mod %>% getMultilabelFeatureImportance %>% featureImportanceSums %>% topFeatures(frac)
 }
