@@ -6,28 +6,10 @@ require(forcats)
 require(magrittr)
 require(testit)
 
-# MemoiseCache must be loaded first
-debugSource("lib/Parallel.R")
-debugSource("lib/Util.R")
-debugSource("lib/Dates.R")
-debugSource("lib/MemoiseCache.R")
-debugSource("lib/Visualization.R")
-debugSource("lib/Feature.R")
-debugSource("lib/FeatureSelection.R")
-debugSource("lib/Feature.R")
-debugSource("lib/SCFile.R")
-debugSource("lib/Sampling.R")
-debugSource("lib/Logging.R")
-debugSource("lib/DataFile.R")
-debugSource("lib/Model.R")
-debugSource("lib/Results.R")
-debugSource("lib/Evaluate.R")
-debugSource("lib/Cleaning.R")
-debugSource("lib/SC.R")
-debugSource("lib/Augment.R")
-debugSource("lib/Response.R")
-debugSource("lib/Split.R")
+debugSource("common.R")
 
+# Threshold for inclusion in prediction shortlist file
+threshold <- 0.8
 
 # Date of earliest predictor data files to use
 #earliest_file_date <- as.Date("2018-11-18")
@@ -36,57 +18,7 @@ earliest_file_date <- NA
 #latest_file_date <- as.Date("2018-11-30")
 latest_file_date <- NA
 
-#sources=c('Count', 'PMCount', 'Jam')
-sources=c('PMCount', 'Count') 
-#sources=c('PMCount') 
-
-# Fraction of observations to use
-sample_rate <- 1
-
-# Maximum number of days to predict SC codes
-sc_code_days <- 14
-#sc_code_days=2
-
-# Offsets to use for generating deltas for numerical data
-delta_days <- c(14)
-#delta_days = c(1, 2)
-
-# Fraction of days to use for training (less SC overlap window)
-training_frac = 0.9
-
-historical_sc_predictors <- TRUE
-deltas <- FALSE
-
-# Drop non-delta numerical values
-only_deltas <- FALSE
-
-regions = c(
-  'RNZ'
-)
-
-device_models= c(
-  'E15',
-  'E16'
-  #'E17',
-  #'E18'
-  #'E19'
-  # Exclude G models for now as counter names and SC subcodes differ 
-  #'G69',
-  #'G70'
-  # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
-  #'G71',
-  #'G73'
-)
-
 parallel=TRUE
-#parallel=FALSE
-
-target_codes <- 1:999
-
-date_field <- 'GetDate'
-
-relative_replacement_dates <- TRUE
-
 
 ################################################################################
 # Load trained model(s)
@@ -204,12 +136,9 @@ predictions <- predictModelSet(
 )
 hits <- mapHash(predictions, function(p) p$data[p$data$prob.TRUE>0.8,])
 
-
 ################################################################################
 # Format predictions for export
 ################################################################################
-
-threshold <- 0.8
 
 # Build single narrow format table
 parts <- list()
@@ -222,7 +151,6 @@ for(label in names(predictions)) {
 }
 
 predictions_narrow <- bind_rows(parts)
-
 
 ################################################################################
 # Write predictions as CSV

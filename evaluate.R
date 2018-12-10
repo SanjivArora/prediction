@@ -5,62 +5,8 @@ require(itertools)
 require(forcats)
 require(magrittr)
 
-# MemoiseCache must be loaded first
-debugSource("lib/Parallel.R")
-debugSource("lib/Util.R")
-debugSource("lib/Dates.R")
-debugSource("lib/MemoiseCache.R")
-debugSource("lib/Visualization.R")
-debugSource("lib/Feature.R")
-debugSource("lib/FeatureSelection.R")
-debugSource("lib/Feature.R")
-debugSource("lib/SCFile.R")
-debugSource("lib/Sampling.R")
-debugSource("lib/Logging.R")
-debugSource("lib/DataFile.R")
-debugSource("lib/Model.R")
-debugSource("lib/Results.R")
-debugSource("lib/Evaluate.R")
-debugSource("lib/Cleaning.R")
-debugSource("lib/SC.R")
-debugSource("lib/Augment.R")
-debugSource("lib/Response.R")
-debugSource("lib/Split.R")
+debugSource("common.R")
 
-
-#sources=c('Count', 'PMCount', 'Jam')
-sources=c('PMCount', 'Count') 
-#sources=c('PMCount') 
-
-feature_files <- c('top.txt')
-selected_features <- FALSE
-
-# Maximum number of days to predict SC code
-sc_code_days <- 14
-#sc_code_days=2
-
-parallel=TRUE
-#parallel=FALSE
-
-date_field <- 'GetDate'
-
-regions = c(
-  'RNZ'
-)
-
-device_models= c(
-  'E15',
-  'E16'
-  #'E17',
-  #'E18'
-  #'E19'
-  # Exclude G models for now as counter names and SC subcodes differ 
-  #'G69',
-  #'G70'
-  # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
-  #'G71',
-  #'G73'
-)
 
 ################################################################################
 # Read predictions
@@ -117,7 +63,6 @@ preds$CodeDate <- unlist(code_dates)
 preds$Elapsed <- preds$CodeDate - preds$GetDate
 preds$FirstCode <- unlist(first_codes)
 preds$FirstCodeDate <- unlist(first_code_dates)
-
 
 
 print(preds)
