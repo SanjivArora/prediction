@@ -8,6 +8,24 @@ require(plotly)
 
 debugSource("defaults.R")
 
+
+sample_rate <- 1
+
+selected_features <- FALSE
+#' device_models= c(
+#'   'E15',
+#'   'E16',
+#'   'E17',
+#'   'E18'
+#'   #'E19'
+#'   # Exclude G models for now as counter names and SC subcodes differ 
+#'   #'G69',
+#'   #'G70'
+#'   # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
+#'   #'G71',
+#'   #'G73'
+#' )
+
 ################################################################################
 # Feature Names
 ################################################################################
@@ -79,7 +97,7 @@ if(historical_sc_predictors) {
 # Restrict to valid numeric values
 ################################################################################
 
-predictors_eligible <- filterIneligible(predictors, string_factors=c(), exclude_cols=c('Serial'))
+predictors_eligible <- filterIneligible(predictors, string_factors=factor_fields, exclude_cols=exclude_fields)
 
 ################################################################################
 # Generate responses
@@ -134,11 +152,14 @@ print(candidate_stats)
 # Save top features
 ################################################################################
 
-# top_features <- topMultilabelModelFeatures(mod, frac=0.4)
-# writeFeatures(row.names(top_features), "top.txt")
+top_features <- topModelsFeatures(models, frac=0.5)
+#writeFeatures(row.names(top_features), "top.txt")
 
 ################################################################################
 # Misc
 ################################################################################
 
 #plotLatency(predictors_all)
+
+#n=0
+#plotPredictorsForModels(predictors_eligible, fs[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("E17", "E18"))

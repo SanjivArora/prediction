@@ -85,7 +85,7 @@ if(historical_sc_predictors) {
 # Restrict to valid numeric values
 ################################################################################
 
-predictors_eligible <- filterIneligible(predictors, string_factors=FALSE)
+predictors_eligible <- filterIneligible(predictors, string_factors=factor_fields, exclude_cols=exclude_fields)
 
 ################################################################################
 # Generate responses

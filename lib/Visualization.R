@@ -2,6 +2,7 @@
 
 require(dplyr)
 require(plotly)
+require(magrittr)
 
 remove_na<-function(data, normalize = TRUE){
   data[is.na(data)==TRUE]<-0
@@ -58,4 +59,51 @@ plotLatency <- function(predictors, model=NA) {
   day_freqs <- plapply(day_latencies, day_to_freqs)
   freqs <- bind_rows(day_freqs) %>% t
   plot_ly(z=freqs, type='heatmap')
+}
+
+overlapingHistogram <- function(v1, v2, title=NA, xlab=NA, breaks=NA) {
+  # Histogram Colored (blue and red)
+  hist(v1, col=rgb(1,0,0,0.5), main=title, xlab=xlab, breaks=breaks)
+  hist(v2, col=rgb(0,0,1,0.5), add=T, breaks=breaks)
+  box()
+}
+
+# Plot a histogram of values a predictor takes for specified models
+plotPredictorForModels <- function(predictors, name, m1, m2, breaks=200) {
+  v1 <- predictors[predictors$Model %in% m1,name]
+  v2 <- predictors[predictors$Model %in% m2,name]
+  v1 %<>% log2
+  v2 %<>% log2
+  # Hack: if no finite values, add a single zero so histogram creation doesn't fail
+  if(!any(is.finite(v1))) {
+    v1 %<>% append(0) 
+  }
+  if(!any(is.finite(v2))) {
+    v2 %<>% append(0) 
+  }
+  overlapingHistogram(
+    v1,
+    v2,
+    title=paste(
+      name,
+      paste(
+        paste(m1, collapse="+"), 
+        paste(m2, collapse="+"), 
+        sep=" v "
+      ),
+      "(R v B)"
+    ),
+    xlab="Log2 Value",
+    breaks=breaks
+  )
+}
+
+plotPredictorsForModels <- function(predictors, names, m1, m2, n=9, breaks=200) {
+  names <- intersect(names, names(predictors))
+  names <- filterBy(names, function(x) predictors[,x] %>% is.numeric)
+  size <- ceiling(sqrt(n))
+  par(mfrow=c(size,size))
+  for(name in names[1:n]) {
+    plotPredictorForModels(predictors, name, m1, m2, breaks=breaks)
+  }
 }

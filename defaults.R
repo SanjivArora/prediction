@@ -1,7 +1,7 @@
 sources=c('PMCount', 'Count', 'RomVer') 
 
 feature_files <- c('top.txt')
-selected_features <- FALSE
+selected_features <- TRUE
 
 # Number of days of predictor data files to use for training
 data_days <- 1000
@@ -68,3 +68,9 @@ date_field <- 'GetDate'
 ntree = 500
 
 relative_replacement_dates <- TRUE
+
+# String fields to use as factors
+factor_fields <- c('Model')
+
+# Fields to exclude
+exclude_fields <- c('Serial')
