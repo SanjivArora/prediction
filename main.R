@@ -6,6 +6,7 @@ require(forcats)
 require(magrittr)
 require(plotly)
 
+debugSource("common.R")
 debugSource("defaults.R")
 
 

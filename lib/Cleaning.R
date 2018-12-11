@@ -101,6 +101,10 @@ verToInt <- function(ver) {
   parts <- strsplit(x, '\\.')[[1]]
   parts <- lapply(parts, function(x) sub('', '0', x))
   parts <- lapply(parts, as.integer)
+  # If there are fewer than three parts in the firmrware version, append zeroes
+  if(length(parts) < 3) {
+    parts %<>% append(rep(0, 3-length(parts)))
+  }
   parts <- lapply(parts, function(x) formatC(x, width = 3, format = "d", flag = "0"))
   s <- paste(parts, collapse='', sep='')
   res <- as.integer(s)
