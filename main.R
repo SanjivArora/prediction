@@ -6,26 +6,25 @@ require(forcats)
 require(magrittr)
 require(plotly)
 
-debugSource("common.R")
-debugSource("defaults.R")
+source("common.R")
 
 
-sample_rate <- 1
+sample_rate <- 0.3
 
-selected_features <- FALSE
-#' device_models= c(
-#'   'E15',
-#'   'E16',
-#'   'E17',
-#'   'E18'
-#'   #'E19'
-#'   # Exclude G models for now as counter names and SC subcodes differ 
-#'   #'G69',
-#'   #'G70'
-#'   # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
-#'   #'G71',
-#'   #'G73'
-#' )
+selected_features <- TRUE
+device_models= c(
+  'E15',
+  'E16',
+  'E17',
+  'E18',
+  'E19'
+  # Exclude G models for now as counter names and SC subcodes differ
+  #'G69',
+  #'G70',
+  # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
+  #'G71',
+  #'G73'
+)
 
 ################################################################################
 # Feature Names
@@ -136,16 +135,16 @@ test_responses <- responses[test_vector,]
 ################################################################################
 
 stats <- evaluateModelSet(models, test_data, test_responses, parallel=F)
-candidate_stats <- getCandidateModelStats(stats)
+# candidate_stats <- getCandidateModelStats(stats)
 # evaluateModelSet(models[candidate_stats$label], test_data, test_responses)
 
-for(label in candidate_stats$label) {
+for(label in keys(models)) {
   cat("\n\n")
   print(paste("Importance for", label))
-  showModelFeatureImportance(models[[label]])
+  showModelFeatureImportance(models[[label]], n=10)
 }
 
-print(candidate_stats)
+#print(candidate_stats)
 
 #evaluateModelSet(models[candidate_stats$label], test_data, test_responses, parallel=parallel)
 
@@ -162,5 +161,10 @@ top_features <- topModelsFeatures(models, frac=0.5)
 
 #plotLatency(predictors_all)
 
-#n=0
-#plotPredictorsForModels(predictors_eligible, fs[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("E17", "E18"))
+# Plot distribution of predictor values for different model groups
+# Get predictors with NAs
+#ps_plot <- filterIneligible(predictors, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=FALSE)
+#n<-1
+#n<-n+1; plotPredictorsForModels(ps_plot, fs[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("E17", "E18"))
+#n<-n+1; plotPredictorsForModels(ps_plot, fs[(1+n*9):(1+(n+1)*9)], c("E15"), c("E16"))
+#n<-n+1; plotPredictorsForModels(ps_plot, row.names(top_features)[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("G69", "G70"))

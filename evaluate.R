@@ -4,8 +4,9 @@ require(mlr)
 require(itertools)
 require(forcats)
 require(magrittr)
+require(rstudioapi)
 
-debugSource("common.R")
+source("common.R")
 
 
 ################################################################################
@@ -66,3 +67,26 @@ preds$FirstCodeDate <- unlist(first_code_dates)
 
 
 print(preds)
+
+
+h <- groupBy(splitDataFrame(preds), function(r) r$Label)
+counts <- mapHash(h, length)
+counts[["overall"]] <- nrow(preds)
+
+getHitRate <- function(preds, cutoff_days=30) {
+  if(length(preds) == 0) {
+    return(NA)
+  } else {
+    res <- sum(preds$Elapsed <= cutoff_days & !is.na(preds$Elapsed)) / nrow(preds)
+    return(res)
+  }
+}
+
+hitrates <- mapHash(h, function(x) x %>% bind_rows %>% getHitRate)
+hitrates[["overall"]] <- getHitRate(preds)
+
+
+print("Counts:")
+print(counts)
+print("Hitrates:")
+print(hitrates)

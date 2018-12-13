@@ -1,5 +1,13 @@
 # Common imports for programs
 
+require(rstudioapi)
+
+# debugSource is an RStudio facility to allow in-fine source examination when debugging.
+# This isn't available if running on the command line, so check whether we are in the RStudio environment.
+if(!rstudioapi::isAvailable()) {
+  debugSource <- source
+}
+
 debugSource("lib/Parallel.R")
 debugSource("lib/Util.R")
 debugSource("lib/Dates.R")

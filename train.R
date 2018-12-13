@@ -6,8 +6,12 @@ require(forcats)
 require(magrittr)
 require(parallel)
 
-debugSource("common.R")
+source("common.R")
 
+# Date of earliest predictor data files to use
+#earliest_file_date <- as.Date("2018-11-01")
+# Date of last data files to use (including SC data)
+#latest_file_date <- as.Date("2018-11-30")
 
 # Number of trees to use for random forest
 ntree = 1000
@@ -112,4 +116,5 @@ model_dir <- 'trained'
 model_filename <- 'model'
 mkdirs(model_dir)
 model_path <- file.path(model_dir, model_filename)
+print(paste("Saving trained model to", model_path))
 saveRDS(models, model_path)

@@ -396,7 +396,7 @@ dataFilesToDataset <- function(data_files,
                                features=FALSE,
                                parallel=TRUE,
                                ncores=NA) {
-  # This is a memory-intensive operation so limit parallalism
+  # This is a memory-intensive operation so limit parallelism
   if(identical(ncores, NA)) {
     ncores <- (max(1, detectCores() / 4))
   }

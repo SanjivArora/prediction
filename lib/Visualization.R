@@ -81,6 +81,11 @@ plotPredictorForModels <- function(predictors, name, m1, m2, breaks=200) {
   if(!any(is.finite(v2))) {
     v2 %<>% append(0) 
   }
+  print(name)
+  print("v1")
+  print(summary(v1))
+  print("v2")
+  print(summary(v2))
   overlapingHistogram(
     v1,
     v2,

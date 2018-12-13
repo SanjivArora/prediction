@@ -10,7 +10,7 @@ data_days <- 1000
 sample_rate <- 1
 
 # Build models for up to this many <SC>_<subcode> pairs
-max_models <- 18
+max_models <- 15
 
 # Maximum number of days to predict SC code
 sc_code_days <- 14
@@ -46,8 +46,8 @@ device_models= c(
   #'G73'
 )
 
+# Perform operations in parallel where possible
 parallel=TRUE
-#parallel=FALSE
 
 # Specify target codes. Note: prediction is based on a <code>_<subcode> label, currently we don't filter on subcode.
 # target_codes <- list(
@@ -74,3 +74,7 @@ factor_fields <- c('Model')
 
 # Fields to exclude
 exclude_fields <- c('Serial')
+
+# Date of earliest predictor data files to use for train/predict (default to use all)
+earliest_file_date <- NA
+latest_file_date <- NA

@@ -84,7 +84,7 @@ DataFile <- setRefClass("DataFile",
         valid_dates <- .self$date - lubridate::days(-1:max_data_age)
         df <- df[df[,date_field] %in% valid_dates,]
         if(nrow(df)==0) {
-          data_log$warn(paste("File contains no current data:", .self$path))
+          data_log$warn(paste("File contains no readings within freshness window:", .self$path))
         }
       }
       # Rewrite serial as concatenation of model and partial serial (i.e. as actual serial)

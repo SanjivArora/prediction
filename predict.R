@@ -6,17 +6,15 @@ require(forcats)
 require(magrittr)
 require(testit)
 
-debugSource("common.R")
+source("common.R")
 
 # Threshold for inclusion in prediction shortlist file
 threshold <- 0.8
 
 # Date of earliest predictor data files to use
 #earliest_file_date <- as.Date("2018-11-18")
-earliest_file_date <- NA
 # Date of last data files to use (including SC data)
 #latest_file_date <- as.Date("2018-11-30")
-latest_file_date <- NA
 
 parallel=TRUE
 
@@ -104,7 +102,7 @@ if(historical_sc_predictors) {
 # Restrict to valid numeric values
 ################################################################################
 
-predictors_eligible <- filterIneligible(predictors, string_factors=FALSE)
+predictors_eligible <- filterIneligible(predictors, string_factors=factor_fields, exclude_cols=exclude_fields)
 
 ################################################################################
 # Impute values for predictors the model expects but which are missing in the data for this time period

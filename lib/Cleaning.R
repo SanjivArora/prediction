@@ -71,7 +71,7 @@ replaceNA <-function(data){
 
 # filterInelible is special - it strips serial numbers. Consequently we don't do this in cleanPredictors.
 # If string_factors is true, convert all strings to factors and include them in the result.
-filterIneligible <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE) {
+filterIneligible <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE, replace_na=TRUE) {
   clean_log$debug("Filtering ineligible observations")
   # Convert characters to factors if so specified
   char_cols <- unlist(lapply(predictors, is.character))
@@ -92,7 +92,9 @@ filterIneligible <- function(predictors, string_factors=c("Model"), exclude_cols
   }
   
   # Replace NAs with default numerical value
-  res <- replaceNA(res)
+  if(replace_na) {
+    res <- replaceNA(res)
+  }
   return(res)
 }
 
