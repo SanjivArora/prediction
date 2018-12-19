@@ -126,13 +126,13 @@ selectLabels <- function(predictors, matching_code_sets_unique, n=10) {
   )
   label_to_serial_count <- mapHash(label_to_unique_serials, function(serials) length(serials))
   
-  label_to_count_and_unqiues <- mapHashWithKeys(
+  label_to_count_and_uniques <- mapHashWithKeys(
     label_counts,
     function(label, count) c(count, label_to_serial_count[[label]])
   )
   
-  # Use geometric mean of observation count and number of unqiue serials as a figure of merit
-  label_to_priority <- mapHash(label_to_count_and_unqiues, geomMean)
+  # Use geometric mean of observation count and number of unique serials as a figure of merit
+  label_to_priority <- mapHash(label_to_count_and_uniques, geomMean)
   top_labels <- tail(sortBy(label_to_priority, function(x) x), n)
   res <- names(top_labels)
   return(res)

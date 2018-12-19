@@ -50,6 +50,10 @@ relativeReplacementDates <- function(predictors) {
   replacement_date_col_names <- colnames(predictors)
   replacement_date_cols <- replacement_date_col_names[grep('X.*replacement\\.date', replacement_date_col_names, ignore.case=T)]
   
+  if(length(replacement_date_cols)==0) {
+    return(predictors)
+  }
+  
   to_date <- function(x) {as.Date(as.character(x), '%y%m%d') %>% unlist}
   date_cols <- predictors[,replacement_date_cols]
   date_cols <- apply(date_cols, 2, to_date)
@@ -69,15 +73,13 @@ replaceNA <-function(data){
   return(temp)
 }
 
-# filterInelible is special - it strips serial numbers. Consequently we don't do this in cleanPredictors.
+# filterIneligibleFields is special - it strips serial numbers. Consequently we don't do this in cleanPredictors.
 # If string_factors is true, convert all strings to factors and include them in the result.
-filterIneligible <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE, replace_na=TRUE) {
-  clean_log$debug("Filtering ineligible observations")
+filterIneligibleFields <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE, replace_na=TRUE) {
+  clean_log$debug("Filtering ineligible fields")
   # Convert characters to factors if so specified
   char_cols <- unlist(lapply(predictors, is.character))
-  if(isTRUE(string_factors)) {
-    string_factors <- char_cols
-  }
+  string_factors <- intersect(names(predictors), string_factors)
   factors <- lapply(predictors[string_factors], as.factor)
   # Make NA a factor level named None
   factors <- lapply(factors, function(x) fct_explicit_na(x, na_level="None"))
@@ -127,12 +129,12 @@ processRomVer <- function(predictors) {
   return(res)
 }
 
-# Includes everything but filterIneligible
+# Includes everything but filterIneligibleFileds
 cleanPredictors <- function(predictors) {
   predictors %>%
     randomizeOrder %>%
     filterDesynced %>%
     filterDuplicates %>%
-    relativeReplacementDates %>%
-    processRomVer
+    relativeReplacementDates #%>%
+    #processRomVer
 }

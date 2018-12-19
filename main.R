@@ -12,19 +12,31 @@ source("common.R")
 sample_rate <- 0.3
 
 selected_features <- TRUE
-device_models= c(
+
+e_series_commercial = c(
   'E15',
   'E16',
   'E17',
   'E18',
   'E19'
-  # Exclude G models for now as counter names and SC subcodes differ
-  #'G69',
-  #'G70',
-  # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
-  #'G71',
-  #'G73'
 )
+
+# Don't mix E and G models for now as counter names and SC subcodes differ
+g_series_commercial = c(
+  'G69',
+  'G70',
+  #TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
+  'G71',
+  'G73'
+)
+
+# Production print, run separately from above
+c_series_prod = c(
+  'C08'
+  #'C09'
+)
+
+device_models <- c_series_prod
 
 ################################################################################
 # Feature Names
@@ -79,12 +91,6 @@ print(paste(nrow(predictors), "total observations"))
 
 matching_code_sets_unique <- getMatchingCodeSets(predictors, serial_to_codes)
 
-###############################################################################
-# Choose labels for which we have the best combinations of observations and unique serials 
-################################################################################
-
-used_labels <- selectLabels(predictors, matching_code_sets_unique, n=max_models)
-
 ################################################################################
 # Add predictors for historical SC codes
 ################################################################################
@@ -97,7 +103,22 @@ if(historical_sc_predictors) {
 # Restrict to valid numeric values
 ################################################################################
 
-predictors_eligible <- filterIneligible(predictors, string_factors=factor_fields, exclude_cols=exclude_fields)
+predictors_eligible <- filterIneligibleFields(predictors, string_factors=factor_fields, exclude_cols=exclude_fields)
+
+################################################################################
+# Train and test datasets
+################################################################################
+
+split_type <- "timeSplit"
+splits <- splitPredictors(predictors, split_type, frac=training_frac, sc_code_days=sc_code_days, date_field=date_field)
+train_vector <- splits[['train']]
+test_vector <- splits[['test']]
+
+###############################################################################
+# Choose labels for which we have the best combinations of observations and unique serials
+################################################################################
+
+used_labels <- selectLabels(predictors[train_vector,], matching_code_sets_unique[train_vector], n=max_models)
 
 ################################################################################
 # Generate responses
@@ -109,26 +130,16 @@ print("Observation counts for SC codes:")
 print(responsesToCounts(responses))
 
 ################################################################################
-# Train and test datasets
-################################################################################
-
-split_type <- "timeSplit"
-splits <- splitPredictors(predictors, split_type, frac=training_frac, sc_code_days=sc_code_days, date_field=date_field)
-train_vector <- splits[['train']]
-test_vector <- splits[['test']]
-
-################################################################################
 # Model
 ################################################################################
 
 train_data <- predictors_eligible[train_vector,]
 train_responses <- responses[train_vector,]
+test_data <- predictors_eligible[test_vector,]
+test_responses <- responses[test_vector,]
 
 # Train models in parallel as despite native threading support there are substantial serial sections
 models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel)
-
-test_data <- predictors_eligible[test_vector,]
-test_responses <- responses[test_vector,]
 
 ################################################################################
 # Evaluate performance
@@ -163,7 +174,7 @@ top_features <- topModelsFeatures(models, frac=0.5)
 
 # Plot distribution of predictor values for different model groups
 # Get predictors with NAs
-#ps_plot <- filterIneligible(predictors, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=FALSE)
+#ps_plot <- filterIneligibleFields(predictors, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=FALSE)
 #n<-1
 #n<-n+1; plotPredictorsForModels(ps_plot, fs[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("E17", "E18"))
 #n<-n+1; plotPredictorsForModels(ps_plot, fs[(1+n*9):(1+(n+1)*9)], c("E15"), c("E16"))
