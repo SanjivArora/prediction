@@ -232,3 +232,11 @@ getEligibleFileSets <- function(regions, models, sources, ...) {
   file_sets <- getDailyFileSets(filtered_files, sources)
   return(file_sets)
 }
+
+latestFileDate <- function(fs=FALSE) {
+  if(isFALSE(fs)) {
+    fs <- instancesForDir()
+  }
+  latest <- sortBy(fs, function(f) f$date, desc=TRUE)[[1]]
+  return(latest$date)
+}

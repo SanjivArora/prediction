@@ -65,9 +65,14 @@ preds$Elapsed <- preds$CodeDate - preds$GetDate
 preds$FirstCode <- unlist(first_codes)
 preds$FirstCodeDate <- unlist(first_code_dates)
 
-
+print("All predictions:")
 print(preds)
 
+
+print("Stats for predictions with 30 days of code data:")
+latestDate <- latestFileDate()
+preds_all <- preds
+preds <- preds[preds_all$GetDate < latestDate-30,]
 
 h <- groupBy(splitDataFrame(preds), function(r) r$Label)
 counts <- mapHash(h, length)
