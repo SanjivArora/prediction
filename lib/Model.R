@@ -52,10 +52,15 @@ trainLabel <- function(label, predictors, response, ntree=500, n_threads=NA) {
   
   
   lrn <- makeLearner("classif.ranger", par.vals=list(
+    #ranger parameters:
     num.threads = n_threads,
     num.trees = ntree,
-    importance = 'impurity'
-    #sample.fraction = 0.2
+    importance = 'impurity',
+    sample.fraction = 0.2
+    #
+    # bartMachine parameters:
+    #mem_cache_for_speed=FALSE
+    #serialize=TRUE
   ))
   lrn <- setPredictType(lrn, "prob")
   

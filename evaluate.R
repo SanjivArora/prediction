@@ -64,6 +64,7 @@ preds$CodeDate <- unlist(code_dates)
 preds$Elapsed <- preds$CodeDate - preds$GetDate
 preds$FirstCode <- unlist(first_codes)
 preds$FirstCodeDate <- unlist(first_code_dates)
+preds$FirstCodeElapsed <- preds$FirstCodeDate - preds$GetDate
 
 print("All predictions:")
 print(preds)
@@ -78,20 +79,29 @@ h <- groupBy(splitDataFrame(preds), function(r) r$Label)
 counts <- mapHash(h, length)
 counts[["overall"]] <- nrow(preds)
 
-getHitRate <- function(preds, cutoff_days=30) {
+getHitRate <- function(preds, field="CodeDate", cutoff_days=30) {
   if(length(preds) == 0) {
     return(NA)
   } else {
-    res <- sum(preds$Elapsed <= cutoff_days & !is.na(preds$Elapsed)) / nrow(preds)
+    elapsed <- preds[,field] - preds$GetDate
+    res <- sum(elapsed <= cutoff_days & !is.na(elapsed)) / nrow(preds)
     return(res)
   }
 }
 
 hitrates <- mapHash(h, function(x) x %>% bind_rows %>% getHitRate)
 hitrates[["overall"]] <- getHitRate(preds)
-
+hitrates_any <- mapHash(h, function(x) x %>% bind_rows %>% getHitRate(field="FirstCodeDate"))
+hitrates_any[["overall"]] <- getHitRate(preds, field="FirstCodeDate")
 
 print("Counts:")
 print(counts)
 print("Hitrates:")
 print(hitrates)
+print("Hitrates - any code:")
+print(hitrates_any)
+
+# Plot distribution of predicton to code occurring
+hist(as.integer(preds$FirstCodeElapsed), breaks=31)
+#hist(as.integer(preds[preds$Label=="X492_0","FirstCodeElapsed"]), breaks=31)
+#hist(as.integer(preds[preds$Label=="X899_0","FirstCodeElapsed"]), breaks=31)

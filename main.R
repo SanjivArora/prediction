@@ -1,3 +1,6 @@
+# For bartMachine models
+#options(java.parameters = "-Xmx128000m")
+
 require(dplyr)
 require(memoise)
 require(mlr)
@@ -9,9 +12,10 @@ require(plotly)
 source("common.R")
 
 
-sample_rate <- 0.3
+#sample_rate <- 0.2
+#max_models <- 3
 
-selected_features <- TRUE
+#selected_features <- TRUE
 
 e_series_commercial = c(
   'E15',
@@ -19,6 +23,11 @@ e_series_commercial = c(
   'E17',
   'E18',
   'E19'
+)
+
+trial = c(
+  'E15',
+  'E16'
 )
 
 # Don't mix E and G models for now as counter names and SC subcodes differ
@@ -36,7 +45,7 @@ c_series_prod = c(
   #'C09'
 )
 
-device_models <- c_series_prod
+device_models <- trial
 
 ################################################################################
 # Feature Names
@@ -139,7 +148,7 @@ test_data <- predictors_eligible[test_vector,]
 test_responses <- responses[test_vector,]
 
 # Train models in parallel as despite native threading support there are substantial serial sections
-models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel)
+models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=F)
 
 ################################################################################
 # Evaluate performance
@@ -179,3 +188,4 @@ top_features <- topModelsFeatures(models, frac=0.5)
 #n<-n+1; plotPredictorsForModels(ps_plot, fs[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("E17", "E18"))
 #n<-n+1; plotPredictorsForModels(ps_plot, fs[(1+n*9):(1+(n+1)*9)], c("E15"), c("E16"))
 #n<-n+1; plotPredictorsForModels(ps_plot, row.names(top_features)[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("G69", "G70"))
+
