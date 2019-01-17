@@ -105,3 +105,39 @@ print(hitrates_any)
 hist(as.integer(preds$FirstCodeElapsed), breaks=31)
 #hist(as.integer(preds[preds$Label=="X492_0","FirstCodeElapsed"]), breaks=31)
 #hist(as.integer(preds[preds$Label=="X899_0","FirstCodeElapsed"]), breaks=31)
+
+
+library('plotly')
+
+plot_hitrates <- function(hits, misses, labels, title="Accuracy") {
+  plot_ly(x=labels, y=hits, type='bar', name='Hits') %>%
+  add_trace(y=misses, name='Misses') %>%
+  layout(
+    # Use order as given rathernt than alphabetical by label
+    xaxis = list(categoryorder="array", categoryarray=labels),
+    yaxis = list(title=title),
+    barmode='stack'
+  )
+}
+
+plot_hitrates_dict <- function(hitrates, counts, title="Accuracy", exclude=c("overall")) {
+  hitrates %<>% excludeFromHash(exclude)
+  counts %<>% excludeFromHash(exclude)
+  ord <- order(values(counts), decreasing=T)
+  rates <- values(hitrates)[ord]
+  cs <- values(counts)[ord]
+  hits <- rates * cs
+  misses <- cs - hits
+  plot_hitrates(unname(hits), unname(misses), names(hits), title)
+}
+
+plot_deltas <- function(preds) {
+  plot_ly(x=preds$FirstCodeElapsed, type="histogram", nbinsx=30) %>%
+    layout(
+      xaxis = list(title="Days elapsed")
+    )
+}
+
+plot_hitrates_dict(hitrates, counts, "Hits")
+plot_hitrates_dict(hitrates_any, counts, "Hits (any)")
+plot_deltas(preds[!is.na(preds$FirstCodeElapsed),])

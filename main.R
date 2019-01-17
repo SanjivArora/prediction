@@ -12,6 +12,8 @@ require(plotly)
 source("common.R")
 
 
+data_days <- 90
+
 #sample_rate <- 0.2
 #max_models <- 3
 

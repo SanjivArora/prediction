@@ -243,3 +243,8 @@ mapToHash <- function(xs, f) {
 geomMean <- function(xs) {
   exp(mean(log(xs)))
 }
+
+# Exclude specified keys
+excludeFromHash <- function(h, excl=c()) {
+  h[keys(h)[!keys(h) %in% excl]]
+}
