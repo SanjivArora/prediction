@@ -12,13 +12,12 @@ require(plotly)
 source("common.R")
 
 
-data_days <- 90
+#data_days <- 90
 
-#sample_rate <- 0.2
 sample_rate <- 0.2
 #max_models <- 3
 
-#selected_features <- TRUE
+selected_features <- FALSE
 
 e_series_commercial = c(
   'E15',
@@ -48,7 +47,7 @@ c_series_prod = c(
   #'C09'
 )
 
-device_models <- trial
+device_models <- c_series_prod
 
 ################################################################################
 # Feature Names

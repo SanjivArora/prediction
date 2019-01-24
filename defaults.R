@@ -1,3 +1,9 @@
+# AWS credentital need to be defined in the environment or ~/.Renviron, e.g:
+#AWS_ACCESS_KEY_ID=xxxxxxxxxxxxxxxxxx
+#AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#AWS_DEFAULT_REGION=ap-southeast-2
+
+
 sources=c('PMCount', 'Count', 'RomVer') 
 
 feature_files <- c('top.txt')

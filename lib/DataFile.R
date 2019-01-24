@@ -3,15 +3,27 @@ require(lubridate)
 require(R.utils)
 require(testit)
 require(utils)
+require(aws.s3)
 
 source('lib/Util.R')
 source('lib/Parallel.R')
 source('lib/Feature.R')
 
-base_path="~/data/"
+#base_path="~/data"
+base_path="s3://ricoh-prediction-data"
+
 timezone="UTC"
 
 data_log <- getModuleLogger("Model")
+
+isS3Path <- function(path) {
+  startsWith(path, "s3://")
+}
+
+# Join paths while respecting "s3://" URIs
+pathJoin <- function(p1, p2) {
+  paste(p1, "/", p2, sep="")
+}
 
 # CSV @Remote data file, if path is not absolute then interpret it as relative to base_path
 DataFile <- setRefClass("DataFile",
@@ -26,9 +38,6 @@ DataFile <- setRefClass("DataFile",
   methods = list(
     initialize = function(...) {
       callSuper(...)
-      if (!file.exists(.self$getFullPath())) {
-        stop(paste("File does not exist at: ", .self$getFullPath()))
-      }
       parts <- .self$pathToParts(.self$path)
       .self$region <- parts[[1]]
       .self$model <- parts[[2]]
@@ -40,11 +49,24 @@ DataFile <- setRefClass("DataFile",
       }
       .self$default_date_fields <- list("GetDate", "ChargeCounterDate")
     },
-    getDate = function() {.self$test},
-    getFullPath = function() {joinPaths(base_path, path)},
+    isS3 = function() {isS3Path(.self$getFullPath())},
+    getFullPath = function() {
+      if(isS3Path(.self$path) | isAbsolutePath(.self$path)) {
+        return(path)
+      } else {
+        return(pathJoin(base_path, .self$path))
+    }},
     getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=3) {
       # Use as.is to disable representing values as factors
-      df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=na_strings, as.is=TRUE)
+      if(.self$isS3()) {
+        p <- tempfile()
+        save_object(.self$getFullPath(), file=p)
+        df <- read.csv(p, header = TRUE, na.strings=na_strings, as.is=TRUE)
+        # Remote temp file
+        unlink(p)
+      } else {
+        df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=na_strings, as.is=TRUE)
+      }
       if(is.na(date_field)) {
         # Use the first field matching default_date_fields
         for(name in names(df)) {
@@ -120,7 +142,7 @@ DataFile <- setRefClass("DataFile",
 )
 
 
-# Reference classes have no supprt for class or static methods, so define functions that notionally belong to the class but not the instances here 
+# Reference classes have no supprt for class or static methods, so define functions that notionally belong to the class but not the instances here
 
 # Class method to return merged dataframe from list of instances. Merge on Serial and FileDate and set row names to serial numbers.
 dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
@@ -150,7 +172,7 @@ dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
             paste(lapply(instances, function(f) f$path), collapse=",")
       )
     )
-  } 
+  }
   return(res)
 }
 
@@ -178,7 +200,13 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=Data
     paste("(", model_pattern, ")", collapse="", sep=""),
     sep='_'
   )
+  if(isS3Path(directory)) {
+    file_data <- get_bucket(paste(directory, "/", sep=""))
+    paths <- lapply(file_data, function(x) x$Key) %>% unlist
+    paths <- lapply(paths, function(p) pathJoin(directory, p))
+  } else {
   paths <- list.files(directory,pattern=pattern, full.names=TRUE)
+  }
   paths <- sort(unlist(paths))
   res <- lapply(paths, function(path) cls(path=path))
   return(res)
@@ -220,7 +248,7 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
 
 getEligibleFileSets <- function(regions, models, sources, ...) {
   all_files <- instancesForDir(regions=regions, models=models)
-  
+
   filtered_files <- list()
   for(region in regions) {
     for(model in models) {
@@ -228,7 +256,7 @@ getEligibleFileSets <- function(regions, models, sources, ...) {
       filtered_files <- append(filtered_files, files)
     }
   }
-  
+
   file_sets <- getDailyFileSets(filtered_files, sources)
   return(file_sets)
 }
