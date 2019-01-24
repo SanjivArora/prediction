@@ -35,7 +35,7 @@ getMatchingCodesBefore <- function(codes, date) {
   return(res)
 }
 
-# Target_codes is a list of numeric SC identifies, main code only. Default to all codes.
+# Target_codes is a list of numeric SC identifiers, main code only. Default to all codes.
 readCodes <- function(regions, models, target_codes=list(1:999), earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {
   target_codes <- Reduce(append, target_codes)
   target_code_hash <- hash()

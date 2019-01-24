@@ -15,6 +15,7 @@ source("common.R")
 data_days <- 90
 
 #sample_rate <- 0.2
+sample_rate <- 0.2
 #max_models <- 3
 
 #selected_features <- TRUE
@@ -61,10 +62,14 @@ if(selected_features) {
 
 ################################################################################
 # SC Codes
+# SC & Jam Codes
 ################################################################################
 
-codes <- readCodes(regions, device_models, target_codes, parallel=parallel)
+codes <- readCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
+
+jams <- readJamCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+serial_to_jams <- makeSerialToCodes(jams)
 
 ################################################################################
 # Sample dataset
@@ -103,11 +108,15 @@ print(paste(nrow(predictors), "total observations"))
 matching_code_sets_unique <- getMatchingCodeSets(predictors, serial_to_codes)
 
 ################################################################################
-# Add predictors for historical SC codes
+# Add predictors for historical codes
 ################################################################################
 
 if(historical_sc_predictors) {
-  predictors <- addHistSC(predictors, serial_to_codes)
+  predictors <- addHistPredictors(predictors, serial_to_codes)
+}
+
+if(historical_jam_predictors) {
+  predictors <- addHistPredictors(predictors, serial_to_jams)
 }
 
 ################################################################################

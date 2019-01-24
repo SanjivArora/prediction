@@ -23,6 +23,7 @@ delta_days <- c(14)
 training_frac = 0.9
 
 historical_sc_predictors <- TRUE
+historical_jam_predictors <- TRUE
 deltas <- FALSE
 
 # Drop non-delta numerical values

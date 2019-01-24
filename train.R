@@ -28,11 +28,14 @@ if(selected_features) {
 }
 
 ################################################################################
-# SC Codes
+# SC & Jam Codes
 ################################################################################
 
 codes <- readCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
+
+jams <- readJamCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+serial_to_jams <- makeSerialToCodes(jams)
 
 ################################################################################
 # Sample dataset
@@ -78,11 +81,15 @@ matching_code_sets_unique <- getMatchingCodeSets(predictors, serial_to_codes)
 used_labels <- selectLabels(predictors, matching_code_sets_unique, n=max_models)
 
 ################################################################################
-# Add predictors for historical SC codes
+# Add predictors for historical codes
 ################################################################################
 
 if(historical_sc_predictors) {
-  predictors <- addHistSC(predictors, serial_to_codes)
+  predictors <- addHistPredictors(predictors, serial_to_codes)
+}
+
+if(historical_jam_predictors) {
+  predictors <- addHistPredictors(predictors, serial_to_jams)
 }
 
 ################################################################################
