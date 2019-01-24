@@ -9,8 +9,8 @@ source('lib/Util.R')
 source('lib/Parallel.R')
 source('lib/Feature.R')
 
-#base_path="~/data"
 base_path="s3://ricoh-prediction-data"
+#base_path="~/data"
 
 timezone="UTC"
 
@@ -201,7 +201,7 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=Data
     sep='_'
   )
   if(isS3Path(directory)) {
-    file_data <- get_bucket(paste(directory, "/", sep=""))
+    file_data <- get_bucket(paste(directory, "/", sep=""), max=.Machine$integer.max)
     paths <- lapply(file_data, function(x) x$Key) %>% unlist
     paths <- lapply(paths, function(p) pathJoin(directory, p))
   } else {

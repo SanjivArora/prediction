@@ -11,10 +11,9 @@ require(plotly)
 
 source("common.R")
 
-
 #data_days <- 90
 
-sample_rate <- 0.2
+#sample_rate <- 0.2
 #max_models <- 3
 
 selected_features <- FALSE
@@ -48,6 +47,14 @@ c_series_prod = c(
 )
 
 device_models <- c_series_prod
+
+
+################################################################################
+# Establish an S3 connection so library works correctly with child processes
+# (using S3 in parallel fails without this)
+################################################################################
+
+bucketlist()
 
 ################################################################################
 # Feature Names
