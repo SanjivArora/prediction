@@ -1,39 +1,3 @@
-codeToLabel <- function(c) {
-  label <- paste(c$SC_CD, c$SC_SERIAL_CD, sep='_')
-  # Make this an R-compliant name
-  label <- make.names(label)
-  return(label)
-}
-
-getMatchingCodesBy <- function(codes, f) {
-  if(class(codes) == "data.frame") {
-    cs <- splitDataFrame(codes)
-  } else {
-    cs <- codes
-  }
-  res <- filterBy(cs, f)
-  return(res)
-}
-
-getMatchingCodes <- function(codes, date, sc_days) {
-  f <- function(c) {
-    delta <- c$OCCUR_DATE - date
-    in_window <- delta > 0 && delta <= sc_days
-    return(in_window)
-  }
-  res <- getMatchingCodesBy(codes, f)
-  return(res)
-}
-
-getMatchingCodesBefore <- function(codes, date) {
-  f <- function(c) {
-    delta <- c$OCCUR_DATE - date
-    match <- delta < 0
-    return(match)
-  }
-  res <- getMatchingCodesBy(codes, f)
-  return(res)
-}
 
 # Target_codes is a list of numeric SC identifiers, main code only. Default to all codes.
 readCodes <- function(regions, models, target_codes=list(1:999), earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {

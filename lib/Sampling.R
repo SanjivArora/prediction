@@ -206,7 +206,8 @@ InstanceCounter <- setRefClass(
 
 makeSerialToCodes <- function(codes) {
   code_list <- splitDataFrame(codes)
-  groupBy(code_list, function (c) c$Serial)
+  res <- groupBy(code_list, function (c) c$Serial)
+  return(res)
 }
 
 # Work around restrictions of reference classes so we don't have to store a redundant codes dataframe on counter object

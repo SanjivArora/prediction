@@ -11,10 +11,12 @@ require(plotly)
 
 source("common.R")
 
-#data_days <- 90
+data_days <- 90
 
-#sample_rate <- 0.2
+sample_rate <- 1 #0.2
 #max_models <- 3
+
+#historical_jam_predictors = FALSE
 
 selected_features <- FALSE
 
@@ -67,15 +69,23 @@ if(selected_features) {
 }
 
 ################################################################################
-# SC Codes
 # SC & Jam Codes
 ################################################################################
 
-codes <- readCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
-serial_to_codes <- makeSerialToCodes(codes)
+service_codes <- readCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+serial_to_service_codes <- makeSerialToCodes(service_codes)
 
 jams <- readJamCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
 serial_to_jams <- makeSerialToCodes(jams)
+
+serials <- append(service_codes$Serial, jams$Serial) %>% unique
+serial_to_codes <- hash()
+for (serial in serials){
+  a <- getWithDefault(serial_to_service_codes, serial, list())
+  b <- getWithDefault(serial_to_jams, serial, list())
+  cs <- append(a, b)
+  serial_to_codes[[serial]] <- cs
+}
 
 ################################################################################
 # Sample dataset
@@ -144,8 +154,15 @@ test_vector <- splits[['test']]
 # Choose labels for which we have the best combinations of observations and unique serials
 ################################################################################
 
-used_labels <- selectLabels(predictors[train_vector,], matching_code_sets_unique[train_vector], n=max_models)
+matching_code_sets_unique_train <- matching_code_sets_unique[train_vector]
+matching_code_sets_unique_service <- lapply(matching_code_sets_unique_train, function(l) filterBy(l, isServiceCode))
+matching_code_sets_unique_jams <- lapply(matching_code_sets_unique_train, function(l) filterBy(l, isJamCode))
 
+used_labels_service <- selectLabels(predictors[train_vector,], matching_code_sets_unique_service, n=max_models)
+
+used_labels_jams <- selectLabels(predictors[train_vector,], matching_code_sets_unique_jams, n=max_models)
+
+used_labels <- append(used_labels_service, used_labels_jams)
 ################################################################################
 # Generate responses
 ################################################################################

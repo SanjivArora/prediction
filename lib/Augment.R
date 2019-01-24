@@ -15,6 +15,9 @@ addHistPredictors <- function(cur_predictors, serial_to_pred) {
     getPreviousForRow(cur_predictors[i,c("Serial", date_field)])
   }
   
+  codes <- values(serial_to_pred) %>% unlist(recursive = FALSE) 
+  used_labels <- codes %>% lapply(codeToLabel) %>% unique
+  
   previous_code_sets_unique <- plapply(
     1:nrow(cur_predictors),
     getPreviousForIndex,
