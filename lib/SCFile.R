@@ -11,11 +11,11 @@ source('lib/DataFile.R')
         raw <- callSuper()
         parts <- list()
         for (i in 1:10) {
-          # Select SCHistory columns ending with _<i>
-          indices <- grepl(paste("SCHistory.*_", i, "$", sep=""), colnames(raw))
-          x <- raw[,indices]
           # Filter out rows with null serials
-          x <- x[!is.na(x[,1]),]
+          x <- raw[!is.na(raw[,'Serial']),]
+          # Select SCHistory columns ending with _<i>
+          indices <- grepl(paste("SCHistory.*_", i, "$", sep=""), colnames(x))
+          x <- x[,indices]
           # Strip _<i> suffixes from column names 
           colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '.*(?=_\\d+$)'))
           # Strip SCHistory_ prefixes from column names 
@@ -59,6 +59,9 @@ codesFor <- function(f, earliest_file_date=NA, latest_file_date=NA, parallel=TRU
     datafiles <- filterBy(datafiles, function(f) f$date <= latest_file_date)
   }
   datafiles <- filterBy(datafiles, f)
+  if(length(datafiles)==0) {
+    stop("No relevant files found")
+  }
   dfs <- plapply(datafiles, function (x) x$getDataFrame(), parallel=parallel)
   res <- distinct(bindRowsForgiving(dfs))
   return(res)

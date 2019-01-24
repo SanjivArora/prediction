@@ -4,7 +4,6 @@ require(mlr)
 require(itertools)
 require(forcats)
 require(magrittr)
-require(parallel)
 
 source("common.R")
 
@@ -16,6 +15,14 @@ source("common.R")
 # Number of trees to use for random forest
 ntree = 1000
 #ntree = 500
+
+
+################################################################################
+# Establish an S3 connection so library works correctly with child processes
+# (using S3 in parallel fails without this)
+################################################################################
+
+bucketlist()
 
 ################################################################################
 # Feature Names
@@ -31,7 +38,7 @@ if(selected_features) {
 # SC & Jam Codes
 ################################################################################
 
-codes <- readCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+codes <- readCodes(regions, device_models, target_codes, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
 
 jams <- readJamCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
