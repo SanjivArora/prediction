@@ -48,7 +48,7 @@ c_series_prod = c(
   #'C09'
 )
 
-device_models <- c_series_prod
+device_models <- e_series_commercials
 
 
 ################################################################################
@@ -128,7 +128,7 @@ matching_code_sets_unique <- getMatchingCodeSets(predictors, serial_to_codes)
 ################################################################################
 
 if(historical_sc_predictors) {
-  predictors <- addHistPredictors(predictors, serial_to_codes)
+  predictors <- addHistPredictors(predictors, serial_to_service_codes)
 }
 
 if(historical_jam_predictors) {
@@ -159,10 +159,10 @@ matching_code_sets_unique_service <- lapply(matching_code_sets_unique_train, fun
 matching_code_sets_unique_jams <- lapply(matching_code_sets_unique_train, function(l) filterBy(l, isJamCode))
 
 used_labels_service <- selectLabels(predictors[train_vector,], matching_code_sets_unique_service, n=max_models)
-
 used_labels_jams <- selectLabels(predictors[train_vector,], matching_code_sets_unique_jams, n=max_models)
 
 used_labels <- append(used_labels_service, used_labels_jams)
+
 ################################################################################
 # Generate responses
 ################################################################################

@@ -11,33 +11,35 @@ source('lib/DataFile.R')
         raw <- callSuper()
         parts <- list()
         for (i in 1:10) {
-          # Filter out rows with null serials
-          x <- raw[!is.na(raw[,'Serial']),]
-          # Select SCHistory columns ending with _<i>
-          indices <- grepl(paste("SCHistory.*_", i, "$", sep=""), colnames(x))
-          x <- x[,indices]
-          # Strip _<i> suffixes from column names 
-          colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '.*(?=_\\d+$)'))
-          # Strip SCHistory_ prefixes from column names 
-          colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '(?<=^SCHistory_).*'))
-          # Create Serial column, exploiting fact that row names are set this way by parent class
-          x <- cbind(row.names(x), x)
-          colnames(x)[1] <- 'Serial'
-          #Set data types
-          x <- transform(x,
-            Serial = as.character(Serial),
-            SC_CD = as.character(SC_CD),
-            SC_SERIAL_CD = as.character(SC_SERIAL_CD),
-            SC_TOTAL = as.numeric(SC_TOTAL),
-            OCCUR_DATE = anytime::anydate(OCCUR_DATE),
-            #    #TODO: merge date and time to datetime value
-            OCCUR_TIME = as.character(OCCUR_TIME),
-            OCCUR_DETAIL = as.character(OCCUR_DETAIL)
-          )
-          # Filter out rows with null codes or dates
-          x <- x[!is.na(x$SC_CD) & !is.na(x$OCCUR_DATE),]
-
-          parts <- append(parts, list(x))
+          try({
+            # Filter out rows with null serials
+            x <- raw[!is.na(raw[,'Serial']),]
+            # Select SCHistory columns ending with _<i>
+            indices <- grepl(paste("SCHistory.*_", i, "$", sep=""), colnames(x))
+            x <- x[,indices]
+            # Strip _<i> suffixes from column names 
+            colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '.*(?=_\\d+$)'))
+            # Strip SCHistory_ prefixes from column names 
+            colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '(?<=^SCHistory_).*'))
+            # Create Serial column, exploiting fact that row names are set this way by parent class
+            x <- cbind(row.names(x), x)
+            colnames(x)[1] <- 'Serial'
+            #Set data types
+            x <- transform(x,
+              Serial = as.character(Serial),
+              SC_CD = as.character(SC_CD),
+              SC_SERIAL_CD = as.character(SC_SERIAL_CD),
+              SC_TOTAL = as.numeric(SC_TOTAL),
+              OCCUR_DATE = anytime::anydate(OCCUR_DATE),
+              #    #TODO: merge date and time to datetime value
+              OCCUR_TIME = as.character(OCCUR_TIME),
+              OCCUR_DETAIL = as.character(OCCUR_DETAIL)
+            )
+            # Filter out rows with null codes or dates
+            x <- x[!is.na(x$SC_CD) & !is.na(x$OCCUR_DATE),]
+  
+            parts <- append(parts, list(x))
+          })
         }
         res <- bindRowsForgiving(parts)
         return(res)
@@ -45,7 +47,6 @@ source('lib/DataFile.R')
       # TODO: method to extract lifetime counts
     )
   )
-
 
 # d <- SCFile(path="RNZ_E16_SC_20180714.csv")
 # x <- d$getDataFrame()

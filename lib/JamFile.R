@@ -11,34 +11,36 @@ source('lib/DataFile.R')
         raw <- callSuper()
         parts <- list()
         for (i in 1:10) {
-          # Select PaperHistory columns ending with _<i>
-          indices <- grepl(paste("PaperHistory.*_", i, "$", sep=""), colnames(raw))
-          x <- raw[,indices]
-          # Filter out rows with null serials
-          x <- x[!is.na(x[,1]),]
-          # Strip _<i> suffixes from column names 
-          colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '.*(?=_\\d+$)'))
-          # Strip PaperHistory_ prefixes from column names 
-          colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '(?<=^PaperHistory_).*'))
-          # Create Serial column, exploiting fact that row names are set this way by parent class
-          x <- cbind(row.names(x), x)
-          colnames(x)[1] <- 'Serial'
-          # Filter out rows with null codes or dates
-          #x <- x[!is.na(x$JAM_CD) & !is.na(x$OCCUR_DATE) & x$JAM_CD != logical(0) & x$OCCUR_DATE != logical(0),]
-          #print(x$OCCUR_DATE)
-          #Set data types
-          x <- transform(x,
-            Serial = as.character(Serial),
-            PAPER_SIZE_CD = as.character(PAPER_SIZE_CD),
-            PAPER_JAM_CD = as.character(PAPER_JAM_CD),
-            COUNT_CNTR = as.numeric(COUNT_CNTR),
-            #OCCUR_DATE = anytime::anydate(OCCUR_DATE),
-            #    #TODO: merge date and time to datetime value
-            OCCUR_TIME = as.character(OCCUR_TIME)#,
-            #OCCUR_DETAIL = as.character(OCCUR_DETAIL)
-          )
-          x$OCCUR_DATE = anytime::anydate(x$OCCUR_DATE)
-          parts <- append(parts, list(x))
+          try({
+            # Select PaperHistory columns ending with _<i>
+            indices <- grepl(paste("PaperHistory.*_", i, "$", sep=""), colnames(raw))
+            x <- raw[,indices]
+            # Filter out rows with null serials
+            x <- x[!is.na(x[,1]),]
+            # Strip _<i> suffixes from column names 
+            colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '.*(?=_\\d+$)'))
+            # Strip PaperHistory_ prefixes from column names 
+            colnames(x) <- lapply(colnames(x), function(n) str_extract(n, '(?<=^PaperHistory_).*'))
+            # Create Serial column, exploiting fact that row names are set this way by parent class
+            x <- cbind(row.names(x), x)
+            colnames(x)[1] <- 'Serial'
+            # Filter out rows with null codes or dates
+            #x <- x[!is.na(x$JAM_CD) & !is.na(x$OCCUR_DATE) & x$JAM_CD != logical(0) & x$OCCUR_DATE != logical(0),]
+            #print(x$OCCUR_DATE)
+            #Set data types
+            x <- transform(x,
+              Serial = as.character(Serial),
+              PAPER_SIZE_CD = as.character(PAPER_SIZE_CD),
+              PAPER_JAM_CD = as.character(PAPER_JAM_CD),
+              COUNT_CNTR = as.numeric(COUNT_CNTR),
+              #OCCUR_DATE = anytime::anydate(OCCUR_DATE),
+              #    #TODO: merge date and time to datetime value
+              OCCUR_TIME = as.character(OCCUR_TIME)#,
+              #OCCUR_DETAIL = as.character(OCCUR_DETAIL)
+            )
+            x$OCCUR_DATE = anytime::anydate(x$OCCUR_DATE)
+            parts <- append(parts, list(x))
+          })
         }
         res <- bindRowsForgiving(parts)
         return(res)
