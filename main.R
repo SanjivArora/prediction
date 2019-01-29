@@ -20,35 +20,8 @@ sample_rate <- 1 #0.2
 
 selected_features <- FALSE
 
-e_series_commercial = c(
-  'E15',
-  'E16',
-  'E17',
-  'E18',
-  'E19'
-)
 
-trial = c(
-  'E15',
-  'E16'
-)
-
-# Don't mix E and G models for now as counter names and SC subcodes differ
-g_series_commercial = c(
-  'G69',
-  'G70',
-  #TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
-  'G71',
-  'G73'
-)
-
-# Production print, run separately from above
-c_series_prod = c(
-  'C08'
-  #'C09'
-)
-
-device_models <- e_series_commercials
+device_models <- device_groups["trial_prod"]
 
 
 ################################################################################

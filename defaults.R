@@ -39,18 +39,34 @@ regions = c(
   'RNZ'
 )
 
-device_models= c(
-  'E15',
-  'E16'
-  #'E17',
-  #'E18',
-  #'E19'
-  # Exclude G models for now as counter names and SC subcodes differ 
-  #'G69',
-  #'G70'
-  # TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
-  #'G71',
-  #'G73'
+device_groups <- list(
+  "e_series_commercial" = c(
+    'E15',
+    'E16',
+    'E17',
+    'E18',
+    'E19'
+  ),
+  # Don't mix E and G models for now as counter names and SC subcodes differ
+  "g_series_commercial" = c(
+    'G69',
+    'G70',
+    #TODO: check with Karl whether these are equivalent to E17 and E19 per Rotem's data
+    'G71',
+    'G73'
+  ),
+  # Production print, run separately from above
+  "c_series_prod" = c(
+    'C08',
+    'C09'
+  ),
+  "trial_commercial" = c(
+    'E15',
+    'E16'
+  ),
+  "trial_prod" = c(
+    'C08'
+  )
 )
 
 # Perform operations in parallel where possible
@@ -85,3 +101,6 @@ exclude_fields <- c('Serial')
 # Date of earliest predictor data files to use for train/predict (default to use all)
 earliest_file_date <- NA
 latest_file_date <- NA
+
+models_s3_bucket = 'ricoh-prediction-models'
+results_s3_bucket = 'ricoh-prediction-results'

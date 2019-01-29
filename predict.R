@@ -27,13 +27,18 @@ parallel=TRUE
 bucketlist()
 
 ################################################################################
+# Get devices to use, if this is not specified as an argument use default value
+################################################################################
+
+device_models <- getDeviceModels()
+
+################################################################################
 # Load trained model(s)
 ################################################################################
 
-model_dir <- 'trained'
-model_filename <- 'model'
-model_path <- file.path(model_dir, model_filename)
-models <- readRDS(model_path)
+models_prefix <- paste(getDeviceModelSetName(), '/', sep='')
+models_path <- latestCloudFile(models_s3_bucket, prefix=models_prefix)
+models <- s3readRDS(models_path, models_s3_bucket)
 
 used_labels <- names(models)
 
@@ -68,7 +73,7 @@ serial_to_jams <- makeSerialToCodes(jams)
 # Sample dataset
 ################################################################################
 
-# Get files, as we are predicting service codes we naturally don't want to wait for SC data to be available
+# Get files, set sc_code_days to 0 since we are predicting service codes and therefore don't want to wait for SC data to be available
 file_sets <- getEligibleFileSets(regions, device_models, sources, earliest_file_date=earliest_file_date, latest_file_date=latest_file_date, sc_code_days=0, sc_data_buffer=0)
 
 data_files <- unlist(file_sets)
@@ -172,11 +177,7 @@ predictions_narrow <- bind_rows(parts)
 
 predictions_hits <- predictions_narrow[predictions_narrow$Confidence > threshold,]
 
-# Save as CSV
-predictions_dir <- 'predictions'
-mkdirs(predictions_dir)
-
-hits_path <- file.path(predictions_dir, paste(latest_file_date, "csv", sep="."))
-all_path <- file.path(predictions_dir, paste(latest_file_date, "all.csv", sep="."))
-write.csv(predictions_hits, file=hits_path, row.names=FALSE)
-write.csv(predictions_narrow, file=all_path, row.names=FALSE)
+hits_path <- paste(getDeviceModelSetName(), paste(latest_file_date, "csv", sep="."), sep='/')
+all_path <- paste(getDeviceModelSetName(), paste(latest_file_date, "all.csv", sep="."), sep='/')
+s3write_using(predictions_hits, write.csv, bucket=results_s3_bucket, object=hits_path, opts=list('row.names'=FALSE))
+s3write_using(predictions_narrow, write.csv, bucket=results_s3_bucket, object=all_path, opts=list('row.names'=FALSE))

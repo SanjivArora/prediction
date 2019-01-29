@@ -2,7 +2,7 @@
 
 require(rstudioapi)
 
-# debugSource is an RStudio facility to allow in-fine source examination when debugging.
+# debugSource is an RStudio facility to allow in-line source examination when debugging.
 # This isn't available if running on the command line, so check whether we are in the RStudio environment.
 if(!rstudioapi::isAvailable()) {
   debugSource <- source
@@ -30,4 +30,6 @@ debugSource("lib/Augment.R")
 debugSource("lib/Response.R")
 debugSource("lib/Split.R")
 debugSource("lib/JamFile.R")
+debugSource("lib/Arguments.R")
+debugSource("lib/Storage.R")
 debugSource("defaults.R")

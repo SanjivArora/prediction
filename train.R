@@ -16,13 +16,18 @@ source("common.R")
 ntree = 1000
 #ntree = 500
 
-
 ################################################################################
 # Establish an S3 connection so library works correctly with child processes
 # (using S3 in parallel fails without this)
 ################################################################################
 
 bucketlist()
+
+################################################################################
+# Get devices to use, if this is not specified as an argument use default value
+################################################################################
+
+device_models <- getDeviceModels()
 
 ################################################################################
 # Feature Names
@@ -51,6 +56,7 @@ serial_to_jams <- makeSerialToCodes(jams)
 file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, latest_file_date=latest_file_date)
 
 data_files <- unlist(file_sets[1:data_days])
+latest_file_date <- latestFileDate(data_files)
 
 predictors_all <- dataFilesToDataset(
   data_files,
@@ -126,9 +132,6 @@ train_responses <- responses
 models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel, ncores=(max(1, detectCores() / 8)))
 
 # Save trained model(s)
-model_dir <- 'trained'
-model_filename <- 'model'
-mkdirs(model_dir)
-model_path <- file.path(model_dir, model_filename)
-print(paste("Saving trained model to", model_path))
-saveRDS(models, model_path)
+model_path <- paste(getDeviceModelSetName(), "/", latest_file_date, ".RDS", sep="")
+print(paste("Saving trained models to", paste("s3://", models_s3_bucket, model_path, sep="")))
+s3saveRDS(models, model_path, models_s3_bucket)

@@ -248,3 +248,15 @@ geomMean <- function(xs) {
 excludeFromHash <- function(h, excl=c()) {
   h[keys(h)[!keys(h) %in% excl]]
 }
+
+# Rebuild a list, ignoring names (this is distinct from unname)
+stripNames <- function(l) {
+  res = list()
+  if (length(l) == 0) {
+    return(res)
+  }
+  for(i in 1:length(l)) {
+    res <- append(res, list(l[[i]]))
+  }
+  return(res)
+}

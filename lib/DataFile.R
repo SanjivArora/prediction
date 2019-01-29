@@ -8,6 +8,7 @@ require(aws.s3)
 source('lib/Util.R')
 source('lib/Parallel.R')
 source('lib/Feature.R')
+source('lib/Storage.R')
 
 base_path="s3://ricoh-prediction-data"
 #base_path="~/data"
@@ -15,15 +16,6 @@ base_path="s3://ricoh-prediction-data"
 timezone="UTC"
 
 data_log <- getModuleLogger("Model")
-
-isS3Path <- function(path) {
-  startsWith(path, "s3://")
-}
-
-# Join paths while respecting "s3://" URIs
-pathJoin <- function(p1, p2) {
-  paste(p1, "/", p2, sep="")
-}
 
 # CSV @Remote data file, if path is not absolute then interpret it as relative to base_path
 DataFile <- setRefClass("DataFile",
@@ -59,11 +51,7 @@ DataFile <- setRefClass("DataFile",
     getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=3) {
       # Use as.is to disable representing values as factors
       if(.self$isS3()) {
-        p <- tempfile()
-        save_object(.self$getFullPath(), file=p)
-        df <- read.csv(p, header = TRUE, na.strings=na_strings, as.is=TRUE)
-        # Remote temp file
-        unlink(p)
+        df <- withCloudFile(.self$getFullPath(), function(p) read.csv(p, header = TRUE, na.strings=na_strings, as.is=TRUE))
       } else {
         df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=na_strings, as.is=TRUE)
       }
@@ -184,6 +172,7 @@ pathsToDataFrame <- function(paths, cls=DataFile) {
 }
 
 # Instances for directory, default to base_path
+# regions and models are best effort - backend may not support this restriction
 instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=DataFile) {
   if(identical(regions, NA)) {
     region_pattern <- '[^_]*'
