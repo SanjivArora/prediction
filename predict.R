@@ -208,6 +208,15 @@ row.names(predictions_hits_formatted) <- c()
 html <- print(xtable(predictions_hits_formatted), type='html')
 devices_string <- paste("(", paste(device_models, collapse=", ", sep=""), ")", sep="")
 
+send_email(
+  "",
+  html,
+  subject=paste("Predictions for", getDeviceModelSetName(), devices_string),
+  to="smatthews@ricoh.co.nz",
+  from=from_address,
+  region=aws_ses_region
+)
+
 if(getDeviceModelSetName() %in% email_for) {
   send_email(
     "",
