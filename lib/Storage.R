@@ -34,7 +34,6 @@ withCloudFile <- function(uri_or_path, f, bucket=NA) {
   return(res)
 }
 
-
 # Return path of last modified cloud file for specified bucket and prefix
 latestCloudFile <- function(bucket, prefix="") {
   files <- get_bucket(bucket, prefix=prefix)

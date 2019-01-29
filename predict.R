@@ -5,6 +5,8 @@ require(itertools)
 require(forcats)
 require(magrittr)
 require(testit)
+require(aws.ses)
+require(xtable)
 
 source("common.R")
 
@@ -18,6 +20,17 @@ threshold <- 0.8
 
 parallel=TRUE
 
+delivery_address <- 'pvanrensburg@ricoh.co.nz'
+#delivery_address <- 'smatthews@ricoh.co.nz'
+
+cc_address <- 'smatthews@ricoh.co.nz'
+
+from_address <- 'testing@sdmatthews.com'
+
+aws_ses_region <- 'us-east-1'
+
+# Only email for production machines
+email_for <- c("trial_prod")
 
 ################################################################################
 # Establish an S3 connection so library works correctly with child processes
@@ -118,7 +131,6 @@ if(historical_jam_predictors) {
   predictors <- addHistPredictors(predictors, serial_to_jams)
 }
 
-
 ################################################################################
 # Restrict to valid numeric values
 ################################################################################
@@ -172,7 +184,7 @@ for(label in names(predictions)) {
 predictions_narrow <- bind_rows(parts)
 
 ################################################################################
-# Write predictions as CSV
+# Write predictions to cloud storage as CSV
 ################################################################################
 
 predictions_hits <- predictions_narrow[predictions_narrow$Confidence > threshold,]
@@ -181,3 +193,29 @@ hits_path <- paste(getDeviceModelSetName(), paste(latest_file_date, "csv", sep="
 all_path <- paste(getDeviceModelSetName(), paste(latest_file_date, "all.csv", sep="."), sep='/')
 s3write_using(predictions_hits, write.csv, bucket=results_s3_bucket, object=hits_path, opts=list('row.names'=FALSE))
 s3write_using(predictions_narrow, write.csv, bucket=results_s3_bucket, object=all_path, opts=list('row.names'=FALSE))
+
+
+################################################################################
+# Email prediction hits to the configured address
+################################################################################
+
+# xtable seems to want to represent dates as integers, so explicitly format to string
+predictions_hits_formatted <- predictions_hits
+predictions_hits_formatted[,c("GetDate", "FileDate")] <- format(predictions_hits_formatted[,c("GetDate", "FileDate")])
+# Sort by serial
+predictions_hits_formatted <- predictions_hits_formatted[order(predictions_hits_formatted$Serial),]
+row.names(predictions_hits_formatted) <- c()
+html <- print(xtable(predictions_hits_formatted), type='html')
+devices_string <- paste("(", paste(device_models, collapse=", ", sep=""), ")", sep="")
+
+if(getDeviceModelSetName() %in% email_for) {
+  send_email(
+    "",
+    html,
+    subject=paste("Predictions for", getDeviceModelSetName(), devices_string),
+    to=delivery_address,
+    cc=cc_address,
+    from=from_address,
+    region=aws_ses_region
+  )
+}

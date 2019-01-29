@@ -133,5 +133,5 @@ models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, p
 
 # Save trained model(s)
 model_path <- paste(getDeviceModelSetName(), "/", latest_file_date, ".RDS", sep="")
-print(paste("Saving trained models to", paste("s3://", models_s3_bucket, model_path, sep="")))
+print(paste("Saving trained models to", paste("s3://", models_s3_bucket, "/", model_path, sep="")))
 s3saveRDS(models, model_path, models_s3_bucket)

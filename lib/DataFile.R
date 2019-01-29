@@ -48,7 +48,7 @@ DataFile <- setRefClass("DataFile",
       } else {
         return(pathJoin(base_path, .self$path))
     }},
-    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=3) {
+    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=7) {
       # Use as.is to disable representing values as factors
       if(.self$isS3()) {
         df <- withCloudFile(.self$getFullPath(), function(p) read.csv(p, header = TRUE, na.strings=na_strings, as.is=TRUE))
@@ -132,21 +132,27 @@ DataFile <- setRefClass("DataFile",
 
 # Reference classes have no supprt for class or static methods, so define functions that notionally belong to the class but not the instances here
 
-# Class method to return merged dataframe from list of instances. Merge on Serial and FileDate and set row names to serial numbers.
+# Class method to return merged dataframe from list of instances. Merge on Serial and date and set row names to serial numbers.
 dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
   data_log$debug(paste("Getting data file for", length(instances), "instances"))
   assert(length(unique(instances))==length(instances))
   dataframes <- plapply(instances, function(instance) instance$getDataFrame(), parallel=FALSE)
   res <- dataframes[[1]]
   if(length(dataframes) >= 2) {
-    merge_on_candidates <- c("Serial", "FileDate", "Model", "GetDate")
+    merge_on_candidates <- c("Serial", "Model", "FileDate")
+    
     for (frame in dataframes[2:length(dataframes)]) {
+      current <- res
       merge_on <- intersect(names(res), names(frame))
       merge_on <- intersect(merge_on, merge_on_candidates)
       res <- merge(res, frame, by.x = merge_on,by.y = merge_on)
+      row.names(res) <- unlist(res[,'Serial'])
+      # Use GetDate of of the first datafile
+      if("GetDate" %in% names(current)) {
+        res$GetDate <- current[res$Serial,]$GetDate
+      }
     }
   }
-  row.names(res) <- unlist(res[,'Serial'])
   if(!isFALSE(features)) {
     # TODO: handle deltas
     additional <- c("Serial", "FileDate", "GetDate", "ChargeCounterDate", "Model")

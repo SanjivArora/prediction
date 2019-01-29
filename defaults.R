@@ -4,6 +4,7 @@
 #AWS_DEFAULT_REGION=ap-southeast-2
 
 
+# Order matters for priority of date fields
 sources=c('PMCount', 'Count', 'RomVer') 
 
 feature_files <- c('top.txt')

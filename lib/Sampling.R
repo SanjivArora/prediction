@@ -15,7 +15,11 @@ getFileSets <- function(data_files, required_sources) {
   group_hash <- groupBy(data_files, function(f) list(f$date, f$region, f$model))
   res <- list()
   for(fs in values(group_hash, simplify=FALSE)) {
-    matches <- filterBy(fs, function(f) f$source %in% required_sources)
+    # Find matches preserving order of sources
+    matches <- list()
+    for(source in required_sources) {
+      matches <- append(matches, filterBy(fs, function(f) f$source==source))
+    }
     if(length(matches) == length(required_sources)) {
       res <- append(res, list(matches))
     }
@@ -217,6 +221,7 @@ makeInstanceCounter <- function(codes, ...) {
   return(res)
 }
 
+# Apply over models
 dailyFileSetToDataframe <- function(daily_file_set, features=features) {
   print(daily_file_set)
   parts <- lapply(daily_file_set, function(fs) dataFilesToDataframe(fs, features=features))

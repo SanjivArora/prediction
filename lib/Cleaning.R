@@ -20,11 +20,12 @@ randomizeOrder <- function(predictors) {
 }
 
 # Eliminate predictors where Count and PMCount data are out of sync
-filterDesynced <- function(predictors, date_fields=c('GetDate', 'ChargeCounterDate')) {
+filterDesynced <- function(preds, date_fields=c('GetDate', 'ChargeCounterDate')) {
   clean_log$debug("Filtering desyncrhonized observations")
-  date_vals <- predictors[,date_fields]
-  predictors <- predictors[date_vals[,1] == date_vals[,1],]
-  return(predictors)
+  date_vals <- preds[,date_fields]
+  deltas <- date_vals[,1] - date_vals[,2]
+  preds <- preds[abs(deltas) <= 1,]
+  return(preds)
 }
 
 # Eliminate predictors with duplicate GetDate
@@ -135,6 +136,6 @@ cleanPredictors <- function(predictors) {
     randomizeOrder %>%
     filterDesynced %>%
     filterDuplicates %>%
-    relativeReplacementDates #%>%
-    #processRomVer
+    relativeReplacementDates %>%
+    processRomVer
 }
