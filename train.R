@@ -17,11 +17,17 @@ ntree = 1000
 #ntree = 500
 
 ################################################################################
+# Parse command line argument (sets variables in current environment)
+################################################################################
+
+parser <- makeParser()
+
+################################################################################
 # Establish an S3 connection so library works correctly with child processes
 # (using S3 in parallel fails without this)
 ################################################################################
 
-bucketlist()
+bucketlist() %>% invisible
 
 ################################################################################
 # Get devices to use, if this is not specified as an argument use default value
@@ -132,6 +138,6 @@ train_responses <- responses
 models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, parallel=parallel, ncores=(max(1, detectCores() / 8)))
 
 # Save trained model(s)
-model_path <- paste(getDeviceModelSetName(), "/", latest_file_date, ".RDS", sep="")
+model_path <- paste(device_group, "/", latest_file_date, ".RDS", sep="")
 print(paste("Saving trained models to", paste("s3://", models_s3_bucket, "/", model_path, sep="")))
 s3saveRDS(models, model_path, models_s3_bucket)

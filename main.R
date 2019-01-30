@@ -11,7 +11,7 @@ require(plotly)
 
 source("common.R")
 
-data_days <- 90
+#data_days <- 90
 
 sample_rate <- 1 #0.2
 #max_models <- 3
@@ -29,7 +29,7 @@ device_models <- device_groups["trial_prod"]
 # (using S3 in parallel fails without this)
 ################################################################################
 
-bucketlist()
+bucketlist() %>% invisible
 
 ################################################################################
 # Feature Names

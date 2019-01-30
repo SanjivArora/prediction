@@ -103,5 +103,9 @@ exclude_fields <- c('Serial')
 earliest_file_date <- NA
 latest_file_date <- NA
 
-models_s3_bucket = 'ricoh-prediction-models'
-results_s3_bucket = 'ricoh-prediction-results'
+models_s3_bucket <- 'ricoh-prediction-models'
+results_s3_bucket <- 'ricoh-prediction-results'
+
+default_email_to <- 'pvanrensburg@ricoh.co.nz'
+
+default_device_group <- "trial_prod"

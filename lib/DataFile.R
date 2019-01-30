@@ -196,7 +196,7 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=Data
     sep='_'
   )
   if(isS3Path(directory)) {
-    file_data <- get_bucket(paste(directory, "/", sep=""), max=.Machine$integer.max)
+    file_data <- getBucketAll(paste(directory, "/", sep=""))
     paths <- lapply(file_data, function(x) x$Key) %>% unlist
     paths <- lapply(paths, function(p) pathJoin(directory, p))
   } else {

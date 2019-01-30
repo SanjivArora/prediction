@@ -14,7 +14,7 @@ source("common.R")
 # (using S3 in parallel fails without this)
 ################################################################################
 
-bucketlist()
+bucketlist() %>% invisible
 
 ################################################################################
 # Get devices to use, if this is not specified as an argument use default value

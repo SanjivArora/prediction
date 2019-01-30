@@ -25,19 +25,23 @@ delivery_address <- 'pvanrensburg@ricoh.co.nz'
 
 cc_address <- 'smatthews@ricoh.co.nz'
 
-from_address <- 'testing@sdmatthews.com'
+from_address <- 'ricoh-prediction-mail@sdmatthews.com'
 
 aws_ses_region <- 'us-east-1'
 
-# Only email for production machines
-email_for <- c("trial_prod")
+
+################################################################################
+# Parse command line argument (sets variables in current environment)
+################################################################################
+
+parser <- makeParser()
 
 ################################################################################
 # Establish an S3 connection so library works correctly with child processes
 # (using S3 in parallel fails without this)
 ################################################################################
 
-bucketlist()
+bucketlist() %>% invisible
 
 ################################################################################
 # Get devices to use, if this is not specified as an argument use default value
@@ -49,7 +53,7 @@ device_models <- getDeviceModels()
 # Load trained model(s)
 ################################################################################
 
-models_prefix <- paste(getDeviceModelSetName(), '/', sep='')
+models_prefix <- paste(device_group, '/', sep='')
 models_path <- latestCloudFile(models_s3_bucket, prefix=models_prefix)
 models <- s3readRDS(models_path, models_s3_bucket)
 
@@ -189,8 +193,8 @@ predictions_narrow <- bind_rows(parts)
 
 predictions_hits <- predictions_narrow[predictions_narrow$Confidence > threshold,]
 
-hits_path <- paste(getDeviceModelSetName(), paste(latest_file_date, "csv", sep="."), sep='/')
-all_path <- paste(getDeviceModelSetName(), paste(latest_file_date, "all.csv", sep="."), sep='/')
+hits_path <- paste(device_group, paste(latest_file_date, "csv", sep="."), sep='/')
+all_path <- paste(device_group, paste(latest_file_date, "all.csv", sep="."), sep='/')
 s3write_using(predictions_hits, write.csv, bucket=results_s3_bucket, object=hits_path, opts=list('row.names'=FALSE))
 s3write_using(predictions_narrow, write.csv, bucket=results_s3_bucket, object=all_path, opts=list('row.names'=FALSE))
 
@@ -208,21 +212,12 @@ row.names(predictions_hits_formatted) <- c()
 html <- print(xtable(predictions_hits_formatted), type='html')
 devices_string <- paste("(", paste(device_models, collapse=", ", sep=""), ")", sep="")
 
-send_email(
-  "",
-  html,
-  subject=paste("Predictions for", getDeviceModelSetName(), devices_string),
-  to="smatthews@ricoh.co.nz",
-  from=from_address,
-  region=aws_ses_region
-)
-
-if(getDeviceModelSetName() %in% email_for) {
+if(!no_email) {
   send_email(
     "",
     html,
-    subject=paste("Predictions for", getDeviceModelSetName(), devices_string),
-    to=delivery_address,
+    subject=paste("Predictions for", device_group, devices_string),
+    to=email_to,
     cc=cc_address,
     from=from_address,
     region=aws_ses_region

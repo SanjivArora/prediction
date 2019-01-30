@@ -36,10 +36,15 @@ withCloudFile <- function(uri_or_path, f, bucket=NA) {
 
 # Return path of last modified cloud file for specified bucket and prefix
 latestCloudFile <- function(bucket, prefix="") {
-  files <- get_bucket(bucket, prefix=prefix)
+  files <- getBucketAll(bucket, prefix=prefix)
   if(length(files) == 0) {
     return(NA)
   }
   latest <- sortBy(files, function(f) f$LastModified, desc=TRUE)[[1]]
   return(latest$Key)
+}
+
+# Get all files in a bucket
+getBucketAll <- function(bucket, ...) {
+  get_bucket(bucket, max=.Machine$integer.max, ...)
 }
