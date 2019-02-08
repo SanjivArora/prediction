@@ -11,17 +11,25 @@ require(plotly)
 
 source("common.R")
 
-#data_days <- 90
+data_days <- 90
 
-sample_rate <- 1 #0.2
+#sample_rate <- 1 #0.2
+sample_rate <- 1
 #max_models <- 3
 
 #historical_jam_predictors = FALSE
 
+deltas <- FALSE
+delta_days <- c(1, 7)
+
 selected_features <- FALSE
 
+# For generating portable data sets, breaks modeling
+replace_nas=FALSE
 
-device_models <- device_groups["trial_prod"]
+
+#device_models <- device_groups[["trial_prod"]]
+device_models <- device_groups[["e_series_commercial"]] %>% unlist %>% unname
 
 
 ################################################################################
@@ -65,8 +73,10 @@ for (serial in serials){
 ################################################################################
 
 file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days)
-
-data_files <- unlist(file_sets[1:data_days])
+if(!is.na(data_days)) {
+  file_sets <- tail(file_sets, data_days)
+}
+data_files <- unlist(file_sets)
 
 predictors_all <- dataFilesToDataset(
   data_files,
@@ -112,7 +122,7 @@ if(historical_jam_predictors) {
 # Restrict to valid numeric values
 ################################################################################
 
-predictors_eligible <- filterIneligibleFields(predictors, string_factors=factor_fields, exclude_cols=exclude_fields)
+predictors_eligible <- filterIneligibleFields(predictors, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=replace_nas)
 
 ################################################################################
 # Train and test datasets
@@ -196,3 +206,8 @@ top_features <- topModelsFeatures(models, frac=0.5)
 #n<-n+1; plotPredictorsForModels(ps_plot, fs[(1+n*9):(1+(n+1)*9)], c("E15"), c("E16"))
 #n<-n+1; plotPredictorsForModels(ps_plot, row.names(top_features)[(1+n*9):(1+(n+1)*9)], c("E15", "E16"), c("G69", "G70"))
 
+
+# Write processed data to s3
+# s3saveRDS(predictors, 'data/predictors.RDS', 'ricoh-prediction-misc')
+# s3saveRDS(service_codes, 'data/service_codes.RDS', 'ricoh-prediction-misc')
+# s3saveRDS(responses, 'data/responses.RDS', 'ricoh-prediction-misc')

@@ -60,8 +60,11 @@ serial_to_jams <- makeSerialToCodes(jams)
 ################################################################################
 
 file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, latest_file_date=latest_file_date)
+if(!is.na(data_days)) {
+  file_sets <- tail(file_sets, data_days)
+}
 
-data_files <- unlist(file_sets[1:data_days])
+data_files <- unlist(file_sets)
 latest_file_date <- latestFileDate(data_files)
 
 predictors_all <- dataFilesToDataset(

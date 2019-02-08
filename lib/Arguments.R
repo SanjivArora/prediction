@@ -3,6 +3,7 @@ require(Xmisc)
 
 getDeviceModels <- function(...) {
   res <- device_groups[[device_group]]
+  res %<>% unlist %>% unname
   return(res)
 }
 
@@ -20,7 +21,7 @@ makeParser <- function() {
   )
   parser$add_argument(
     '--no_email', type='logical',
-    action='store_true',
+    action='store_true', default=FALSE,
     help='Email prediction results to the specified address'
   )
   

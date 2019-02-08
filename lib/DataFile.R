@@ -48,7 +48,7 @@ DataFile <- setRefClass("DataFile",
       } else {
         return(pathJoin(base_path, .self$path))
     }},
-    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=7) {
+    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=7, prepend_source=TRUE) {
       # Use as.is to disable representing values as factors
       if(.self$isS3()) {
         df <- withCloudFile(.self$getFullPath(), function(p) read.csv(p, header = TRUE, na.strings=na_strings, as.is=TRUE))
@@ -113,6 +113,16 @@ DataFile <- setRefClass("DataFile",
       # Canonicalise names
       if(rename) {
         colnames(df) <- lapply(colnames(df), canonicalFeatureName)
+      }
+      # Prepend source to feature names
+      if(prepend_source) {
+        colnames(df) <- lapply(colnames(df), function(name) {
+          if(name %in% c('Serial', date_field, 'FileDate')) {
+            return(name)
+          } else {
+            return(paste(.self$source, name, sep="."))
+          }
+        })
       }
       return(df)
     },

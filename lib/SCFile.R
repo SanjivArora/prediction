@@ -8,7 +8,7 @@ source('lib/DataFile.R')
     methods = list(
       # Get a data frame of all non-N/A SC codes
       getDataFrame = function() {
-        raw <- callSuper()
+        raw <- callSuper(prepend_source=FALSE)
         parts <- list()
         for (i in 1:10) {
           try({
