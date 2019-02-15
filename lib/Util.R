@@ -260,3 +260,8 @@ stripNames <- function(l) {
   }
   return(res)
 }
+
+# Concatenate a list of lists
+concat <- function(ls) {
+  Reduce(append, ls)
+}

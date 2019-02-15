@@ -25,11 +25,11 @@ delta_days <- c(1, 7)
 selected_features <- FALSE
 
 # For generating portable data sets, breaks modeling
-replace_nas=FALSE
+#replace_nas=FALSE
 
 
-#device_models <- device_groups[["trial_prod"]]
-device_models <- device_groups[["e_series_commercial"]] %>% unlist %>% unname
+device_models <- device_groups[["trial_commercial"]]
+#device_models <- device_groups[["e_series_commercial"]]
 
 
 ################################################################################
@@ -142,7 +142,8 @@ matching_code_sets_unique_service <- lapply(matching_code_sets_unique_train, fun
 matching_code_sets_unique_jams <- lapply(matching_code_sets_unique_train, function(l) filterBy(l, isJamCode))
 
 used_labels_service <- selectLabels(predictors[train_vector,], matching_code_sets_unique_service, n=max_models)
-used_labels_jams <- selectLabels(predictors[train_vector,], matching_code_sets_unique_jams, n=max_models)
+#used_labels_jams <- selectLabels(predictors[train_vector,], matching_code_sets_unique_jams, n=max_models)
+used_labels_jams <- list()
 
 used_labels <- append(used_labels_service, used_labels_jams)
 

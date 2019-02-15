@@ -46,5 +46,24 @@ latestCloudFile <- function(bucket, prefix="") {
 
 # Get all files in a bucket
 getBucketAll <- function(bucket, ...) {
-  get_bucket(bucket, max=.Machine$integer.max, ...)
+  get_bucket(bucket, max=Inf, ...)
+}
+
+# Get matching paths for files stored as <date>/<x> for specified number of days
+getCloudFiles <- function(bucket, days=90, end_date=NA, parallel=TRUE) {
+  if(is.na(end_date)) {
+    end_date <- Sys.Date()
+  }
+  dates <- seq.Date(from=end_date-(days-1), to=end_date, by=1)
+  date_strings <- as.character(dates, '%Y%m%d')
+  file_sets <- plapply(
+    date_strings,
+    function(date_string) {
+      fs <- getBucketAll(bucket, prefix=paste(date_string, '/', sep=''))
+      res <- fs %>% lapply(function(f) f$Key) %>% unname %>% unlist
+    },
+    parallel=parallel
+  )
+  res <- concat(file_sets)
+  return(res)
 }

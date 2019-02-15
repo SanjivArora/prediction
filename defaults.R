@@ -11,7 +11,7 @@ feature_files <- c('top.txt')
 selected_features <- TRUE
 
 # Number of days of predictor data files to use for training
-data_days <- 1000
+data_days <- 1200
 
 # Fraction of observations to use
 sample_rate <- 1
@@ -27,7 +27,7 @@ delta_days <- c(14)
 #delta_days = c(1, 3, 7, 14)
 
 # Fraction of days to use for training (less SC overlap window)
-training_frac = 0.9
+training_frac = 0.7
 
 historical_sc_predictors <- TRUE
 historical_jam_predictors <- TRUE
@@ -109,3 +109,5 @@ results_s3_bucket <- 'ricoh-prediction-results'
 default_email_to <- 'pvanrensburg@ricoh.co.nz'
 
 default_device_group <- "trial_prod"
+
+replace_nas <- TRUE

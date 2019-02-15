@@ -10,8 +10,8 @@ source('lib/Parallel.R')
 source('lib/Feature.R')
 source('lib/Storage.R')
 
-base_path="s3://ricoh-prediction-data"
-#base_path="~/data"
+default_bucket="ricoh-prediction-data-test2"
+base_path=paste("s3://", default_bucket, sep="")
 
 timezone="UTC"
 
