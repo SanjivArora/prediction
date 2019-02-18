@@ -13,11 +13,6 @@ source("common.R")
 # Threshold for inclusion in prediction shortlist file
 threshold <- 0.8
 
-# Date of earliest predictor data files to use
-#earliest_file_date <- as.Date("2018-11-18")
-# Date of last data files to use (including SC data)
-#latest_file_date <- as.Date("2018-11-30")
-
 parallel=TRUE
 
 delivery_address <- 'pvanrensburg@ricoh.co.nz'
@@ -67,23 +62,18 @@ all_data_file_sets <- getEligibleFileSets(regions, device_models, sources, sc_co
 all_valid_data_files <- unlist(all_data_file_sets)
 latest_valid_data_file <- sortBy(all_valid_data_files, function(f) f$date, desc=TRUE)[[1]]
 
-if(identical(earliest_file_date, NA)) {
-  earliest_file_date <- latest_valid_data_file$date
+if(identical(end_date, NA)) {
+  end_date <- latest_valid_data_file$date
 }
-if(identical(latest_file_date, NA)) {
-  latest_file_date <- latest_valid_data_file$date
-}
-
-assert(earliest_file_date<=latest_file_date)
 
 ################################################################################
 # SC & Jam Codes
 ################################################################################
 
-codes <- readCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+codes <- readCodes(regions, device_models, target_codes, end_date=end_date, days=days, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
 
-jams <- readJamCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+jams <- readJamCodes(regions, device_models, target_codes, end_date=end_date, days=days, parallel=parallel)
 serial_to_jams <- makeSerialToCodes(jams)
 
 ################################################################################
@@ -91,7 +81,7 @@ serial_to_jams <- makeSerialToCodes(jams)
 ################################################################################
 
 # Get files, set sc_code_days to 0 since we are predicting service codes and therefore don't want to wait for SC data to be available
-file_sets <- getEligibleFileSets(regions, device_models, sources, earliest_file_date=earliest_file_date, latest_file_date=latest_file_date, sc_code_days=0, sc_data_buffer=0)
+file_sets <- getEligibleFileSets(regions, device_models, sources, days=1, end_date=end_date, sc_code_days=0, sc_data_buffer=0)
 
 data_files <- unlist(file_sets)
 
@@ -186,12 +176,11 @@ for(label in names(predictions)) {
 }
 
 predictions_narrow <- bind_rows(parts)
+predictions_hits <- predictions_narrow[predictions_narrow$Confidence > threshold,]
 
 ################################################################################
 # Write predictions to cloud storage as CSV
 ################################################################################
-
-predictions_hits <- predictions_narrow[predictions_narrow$Confidence > threshold,]
 
 hits_path <- paste(device_group, paste(latest_file_date, "csv", sep="."), sep='/')
 all_path <- paste(device_group, paste(latest_file_date, "all.csv", sep="."), sep='/')

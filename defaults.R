@@ -99,9 +99,9 @@ factor_fields <- c('Model')
 # Fields to exclude
 exclude_fields <- c('Serial')
 
-# Date of earliest predictor data files to use for train/predict (default to use all)
-earliest_file_date <- NA
-latest_file_date <- NA
+# Date of earliest predictor data files to use for train/predict (default to use up to 90 days)
+days <- 90
+end_date <- NA
 
 models_s3_bucket <- 'ricoh-prediction-models'
 results_s3_bucket <- 'ricoh-prediction-results'

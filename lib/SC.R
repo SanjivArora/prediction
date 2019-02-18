@@ -1,12 +1,12 @@
 
 # Target_codes is a list of numeric SC identifiers, main code only. Default to all codes.
-readCodes <- function(regions, models, target_codes=list(1:999), earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {
+readCodes <- function(regions, models, target_codes=list(1:999), days=NA, end_date=NA, parallel=TRUE) {
   target_codes <- Reduce(append, target_codes)
   target_code_hash <- hash()
   for(c in target_codes) {
     target_code_hash[[as.character(c)]] <- TRUE
   }
-  codes_all <- codesForRegionsAndModels(regions, models, earliest_file_date=earliest_file_date, latest_file_date=latest_file_date, parallel=parallel)
+  codes_all <- codesForRegionsAndModels(regions, models, days=days, end_date=end_date, parallel=parallel)
   # Remote duplicate code instances
   code_dups <- duplicated(codes_all[,c('Serial', 'SC_CD', 'SC_SERIAL_CD', 'OCCUR_DATE')])
   codes_unique <- codes_all[!code_dups,]

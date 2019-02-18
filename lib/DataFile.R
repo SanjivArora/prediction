@@ -187,9 +187,8 @@ pathsToDataFrame <- function(paths, cls=DataFile) {
   return(res)
 }
 
-# Instances for directory, default to base_path
-# regions and models are best effort - backend may not support this restriction
-instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=DataFile) {
+
+makePattern <- function(regions=NA, models=NA, sources=NA) {
   if(identical(regions, NA)) {
     region_pattern <- '[^_]*'
   } else {
@@ -200,33 +199,50 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, cls=Data
   } else {
     model_pattern <- paste(models, collapse='|', sep="")
   }
+  if(identical(sources, NA)) {
+    source_pattern <- '[^_]*'
+  } else {
+    source_pattern <- paste(sources, collapse='|', sep="")
+  }
   pattern <- paste(
     paste("(", region_pattern, ")", collapse="", sep=""),
     paste("(", model_pattern, ")", collapse="", sep=""),
+    paste("(", source_pattern, ")", collapse="", sep=""),
     sep='_'
   )
+  return(pattern)
+}
+
+# Instances for directory, default to base_path
+# regions and models are best effort - backend may not support this restriction
+instancesForDir <- function(directory=base_path, regions=NA, models=NA, sources=NA, cls=DataFile) {
+  pattern <- makePattern(regions=regions, models=models, sources=sources)
   if(isS3Path(directory)) {
     file_data <- getBucketAll(paste(directory, "/", sep=""))
     paths <- lapply(file_data, function(x) x$Key) %>% unlist
     paths <- lapply(paths, function(p) pathJoin(directory, p))
   } else {
-  paths <- list.files(directory,pattern=pattern, full.names=TRUE)
+  paths <- list.files(directory, pattern=pattern, full.names=TRUE)
   }
   paths <- sort(unlist(paths))
   res <- lapply(paths, function(path) cls(path=path))
   return(res)
 }
 
-getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, sc_data_buffer=4, earliest_file_date=NA, latest_file_date=NA, all_files=NA) {
+# Get instances for cloud files stored as <date>/<x> for specified number of days.
+# Filter for regions, models and sources if given (match all by default)
+instancesForBucket <- function(bucket=default_bucket, days=90, end_date=NA, regions=NA, models=NA, sources=NA, cls=DataFile) {
+  pattern <- makePattern(regions=regions, models=models, sources=sources)
+  paths <- getCloudFiles(bucket, days=days, end_date=end_date, pattern=pattern)
+  paths <- lapply(paths, function(path) paste("s3://", bucket, '/', path, sep=''))
+  res <- lapply(paths, function(path) cls(path=path))
+  return(res)
+}
+
+getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, sc_data_buffer=4, days=NA, end_date=NA, all_files=NA) {
   # Don't use is.na here as it generates a warning message when used with a vector
   if(identical(all_files, NA)) {
-    all_files <- instancesForDir()
-  }
-  if(!identical(earliest_file_date, NA)) {
-    all_files <- filterBy(all_files, function(f) f$date >= earliest_file_date)
-  }
-  if(!identical(latest_file_date, NA)) {
-    all_files <- filterBy(all_files, function(f) f$date <= latest_file_date)
+    all_files <- instancesForBucket(regions=c(region), models=c(model), sources=sources, days=days, end_date=end_date)
   }
   # Restrict data set to days for which we have current SC code data, and a maximum of data_days
   sc_files <- filterBy(all_files, function(f) f$source=="SC" && f$region==region && f$model==model)
@@ -242,7 +258,6 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
   filtered_data_files <- filterBy(
     all_files,
     function(f) {
-      as.Date(f$date) <= latest_data_file_date &&
       f$region == region &&
       f$model == model &&
       f$source %in% sources
@@ -251,13 +266,15 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
   return(filtered_data_files)
 }
 
-getEligibleFileSets <- function(regions, models, sources, ...) {
-  all_files <- instancesForDir(regions=regions, models=models)
+getEligibleFileSets <- function(regions, models, sources, days=NA, end_date=NA, ...) {
+  # Don't restrict sources, we need code files for filtering date ranges
+  all_files <- instancesForBucket(regions=regions, models=models, days=days, end_date=end_date)
 
   filtered_files <- list()
   for(region in regions) {
     for(model in models) {
-      files <- getEligibleModelDataFiles(region, model, sources, all_files=all_files, ...)
+      files <- getEligibleModelDataFiles(region, model, sources, all_files=all_files, days=days, end_date=end_date, ...)
+      getEligibleModelDataFiles(regions[[1]], models[[1]], sources[[1]], all_files=x, days=days, end_date=end_date)
       filtered_files <- append(filtered_files, files)
     }
   }
@@ -268,7 +285,7 @@ getEligibleFileSets <- function(regions, models, sources, ...) {
 
 latestFileDate <- function(fs=FALSE) {
   if(isFALSE(fs)) {
-    fs <- instancesForDir()
+    fs <- instancesForBucket()
   }
   latest <- sortBy(fs, function(f) f$date, desc=TRUE)[[1]]
   return(latest$date)

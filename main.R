@@ -28,7 +28,8 @@ selected_features <- FALSE
 #replace_nas=FALSE
 
 
-device_models <- device_groups[["trial_commercial"]]
+device_models <- device_groups[["trial_prod"]]
+#device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
 
@@ -53,10 +54,10 @@ if(selected_features) {
 # SC & Jam Codes
 ################################################################################
 
-service_codes <- readCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+service_codes <- readCodes(regions, device_models, target_codes, days=days, end_date=end_date, parallel=parallel)
 serial_to_service_codes <- makeSerialToCodes(service_codes)
 
-jams <- readJamCodes(regions, device_models, target_codes, latest_file_date=latest_file_date, parallel=parallel)
+jams <- readJamCodes(regions, device_models, target_codes, days=days, end_date=end_date, parallel=parallel)
 serial_to_jams <- makeSerialToCodes(jams)
 
 serials <- append(service_codes$Serial, jams$Serial) %>% unique
@@ -72,7 +73,7 @@ for (serial in serials){
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days)
+file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=days, end_date=end_date)
 if(!is.na(data_days)) {
   file_sets <- tail(file_sets, data_days)
 }

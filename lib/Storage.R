@@ -49,10 +49,14 @@ getBucketAll <- function(bucket, ...) {
   get_bucket(bucket, max=Inf, ...)
 }
 
-# Get matching paths for files stored as <date>/<x> for specified number of days
-getCloudFiles <- function(bucket, days=90, end_date=NA, parallel=TRUE) {
+# Get matching paths for files stored as <date>/<x> for specified number of days.
+# Return paths matching specified pattern (match all by default)
+getCloudFiles <- function(bucket, days=NA, end_date=NA, pattern='*', parallel=TRUE) {
   if(is.na(end_date)) {
     end_date <- Sys.Date()
+  }
+  if(is.na(days)) {
+    days <- 90
   }
   dates <- seq.Date(from=end_date-(days-1), to=end_date, by=1)
   date_strings <- as.character(dates, '%Y%m%d')
@@ -60,7 +64,10 @@ getCloudFiles <- function(bucket, days=90, end_date=NA, parallel=TRUE) {
     date_strings,
     function(date_string) {
       fs <- getBucketAll(bucket, prefix=paste(date_string, '/', sep=''))
-      res <- fs %>% lapply(function(f) f$Key) %>% unname %>% unlist
+      names <- fs %>% lapply(function(f) f$Key) %>% unname %>% unlist
+      matches <- grep(pattern, names)
+      names <- names[matches]  
+      return(names)
     },
     parallel=parallel
   )

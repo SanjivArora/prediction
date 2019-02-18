@@ -53,33 +53,21 @@ source('lib/DataFile.R')
 # d <- JamFile(path="RNZ_E16_JAM_20180714.csv")
 # x <- d$getDataFrame()
   
-jamsFor <- function(f, earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {
-  datafiles <- instancesForDir(cls=JamFile)
-  if(!identical(earliest_file_date, NA)) {
-    datafiles <- filterBy(datafiles, function(f) f$date >= earliest_file_date)
-  }
-  if(!identical(latest_file_date, NA)) {
-    datafiles <- filterBy(datafiles, function(f) f$date <= latest_file_date)
-  }
-  datafiles <- filterBy(datafiles, f)
+jamsFor <- function(regions=NA, models=NA, days=NA, end_date=NA, parallel=TRUE) {
+  datafiles <- instancesForBucket(cls=JamFile, regions=regions, models=models, sources=c('Jam'), end_date=end_date, days=days)
   dfs <- plapply(datafiles, function (x) x$getDataFrame(), parallel=parallel)
   res <- distinct(bindRowsForgiving(dfs))
   return(res)
 }
 
-jamsForRegionsAndModels <- function(regions, models, earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {
-  res <- jamsFor(function(f) {f$model %in% models && f$region %in% regions && f$source=='Jam'}, earliest_file_date=earliest_file_date, latest_file_date=latest_file_date, parallel=parallel)
-  return(res)
-}
-
 # Target_codes is a list of numeric Jam codes identifiers, main code only. Default to all codes.
-readJamCodes <- function(regions, models, target_codes=list(1:999), earliest_file_date=NA, latest_file_date=NA, parallel=TRUE) {
+readJamCodes <- function(regions=NA, models=NA, target_codes=list(1:999), days=NA, end_date=NA, parallel=TRUE) {
   target_codes <- Reduce(append, target_codes)
   target_code_hash <- hash()
   for(c in target_codes) {
     target_code_hash[[as.character(c)]] <- TRUE
   }
-  codes_all <- jamsForRegionsAndModels(regions, models, earliest_file_date=earliest_file_date, latest_file_date=latest_file_date, parallel=parallel)
+  codes_all <- jamsFor(regions, models, days=days, end_date=end_date, parallel=parallel)
   # Remote duplicate code instances
   code_dups <- duplicated(codes_all[,c('Serial', 'PAPER_SIZE_CD', 'PAPER_JAM_CD', 'OCCUR_DATE')])
   codes_unique <- codes_all[!code_dups,]
