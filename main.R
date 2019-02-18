@@ -11,7 +11,7 @@ require(plotly)
 
 source("common.R")
 
-data_days <- 90
+data_days <- 100
 
 #sample_rate <- 1 #0.2
 sample_rate <- 1

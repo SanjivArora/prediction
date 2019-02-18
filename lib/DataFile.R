@@ -258,6 +258,7 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
   filtered_data_files <- filterBy(
     all_files,
     function(f) {
+      as.Date(f$date) <= latest_data_file_date &&
       f$region == region &&
       f$model == model &&
       f$source %in% sources
