@@ -110,10 +110,6 @@ DataFile <- setRefClass("DataFile",
       }
       # Set row names to Serial
       row.names(df) <- unlist(df[,'Serial'])
-      # Canonicalise names
-      if(rename) {
-        colnames(df) <- lapply(colnames(df), canonicalFeatureName)
-      }
       # Prepend source to feature names
       if(prepend_source) {
         colnames(df) <- lapply(colnames(df), function(name) {
@@ -123,6 +119,10 @@ DataFile <- setRefClass("DataFile",
             return(paste(.self$source, name, sep="."))
           }
         })
+      }
+      # Canonicalise names
+      if(rename) {
+        colnames(df) <- lapply(colnames(df), canonicalFeatureName)
       }
       return(df)
     },
