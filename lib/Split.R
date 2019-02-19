@@ -51,9 +51,9 @@ splitPredictors <- function(predictors, split_type, frac=default_frac, sc_code_d
     latest <- sort(train_dates, decreasing=TRUE)[[1]]
     latest_eligible <- latest - total_days_to_drop
     train_vector <- unlist(lapply(predictor_dates, function(d) d <= latest_eligible)) & train_vector
-    if(sum(train_vector) == 0) {
-      stop("No eligible training data")
-    }
+  }
+  if(sum(train_vector) == 0) {
+    stop("No eligible training data")
   }
   
   res <- list(train=train_vector, test=test_vector)

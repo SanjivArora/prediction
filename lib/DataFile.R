@@ -275,7 +275,6 @@ getEligibleFileSets <- function(regions, models, sources, days=NA, end_date=NA, 
   for(region in regions) {
     for(model in models) {
       files <- getEligibleModelDataFiles(region, model, sources, all_files=all_files, days=days, end_date=end_date, ...)
-      getEligibleModelDataFiles(regions[[1]], models[[1]], sources[[1]], all_files=x, days=days, end_date=end_date)
       filtered_files <- append(filtered_files, files)
     }
   }
