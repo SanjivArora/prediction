@@ -28,8 +28,8 @@ selected_features <- FALSE
 #replace_nas=FALSE
 
 
-#device_models <- device_groups[["trial_prod"]]
-device_models <- device_groups[["trial_commercial"]]
+device_models <- device_groups[["trial_prod"]]
+#device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
 

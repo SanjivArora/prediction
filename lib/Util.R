@@ -124,7 +124,8 @@ updateHash <- function(h1, h2) {
   hash(append(keys(h1), keys(h2)), append(values(h1), values(h2)))
 }
 
-# Combine hashes, values in the second hash are added to values in the first hash
+# Combine hashes, values in the second hash are numerically added to values in the first hash.
+# If a value does not exist in the first hash, a default of 0 is used.
 addHash <- function(h1, h2) {
   res <- copy(h1)
   for(k in keys(h2)) {

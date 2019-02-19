@@ -1,3 +1,5 @@
+require(aws.s3)
+
 isS3Path <- function(path) {
   startsWith(path, "s3://")
 }

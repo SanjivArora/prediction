@@ -37,6 +37,7 @@ filterDuplicates <- function(predictors) {
 }
 
 # Eliminate predictors with a single unique value
+# TODO: eliminate predictors with a single unique value per model
 filterSingleValued <- function(predictors) {
   clean_log$debug("Filtering single valued observations")
   unique_val_counts <- sapply(predictors, function(c) length(unique(c)))

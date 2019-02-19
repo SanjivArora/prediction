@@ -3,8 +3,6 @@ require(lubridate)
 require(R.utils)
 require(testit)
 require(utils)
-require(aws.s3)
-
 source('lib/Util.R')
 source('lib/Parallel.R')
 source('lib/Feature.R')
@@ -25,7 +23,8 @@ DataFile <- setRefClass("DataFile",
     model = "character",
     source = "character",
     date = "Date",
-    default_date_fields = "list"
+    default_date_fields = "list",
+    default_time_fields = "list"
   ),
   methods = list(
     initialize = function(...) {
@@ -40,6 +39,7 @@ DataFile <- setRefClass("DataFile",
         stop(paste("Unable to parse date string: ", parts[[4]]))
       }
       .self$default_date_fields <- list("GetDate", "ChargeCounterDate")
+      .self$default_time_fields <- list("GetTime", "ChargeCounterTime")
     },
     isS3 = function() {isS3Path(.self$getFullPath())},
     getFullPath = function() {
@@ -48,7 +48,7 @@ DataFile <- setRefClass("DataFile",
       } else {
         return(pathJoin(base_path, .self$path))
     }},
-    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=7, prepend_source=TRUE) {
+    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, time_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=7, prepend_source=TRUE) {
       # Use as.is to disable representing values as factors
       if(.self$isS3()) {
         df <- withCloudFile(.self$getFullPath(), function(p) read.csv(p, header = TRUE, na.strings=na_strings, as.is=TRUE))
@@ -65,6 +65,16 @@ DataFile <- setRefClass("DataFile",
         }
         if(is.na(date_field)) {
           stop(paste("Could not find a date field for", .self$path))
+        }
+        # Ditto for time field
+        for(name in names(df)) {
+          if(name %in% .self$default_time_fields) {
+            time_field <- name
+            break
+          }
+        }
+        if(is.na(time_field)) {
+          stop(paste("Could not find a time field for", .self$path))
         }
       }
       # Filter rows where the date field isn't set
@@ -101,6 +111,8 @@ DataFile <- setRefClass("DataFile",
       df$Serial <- paste(df$Model, df$Serial, sep="")
       # Create a standardized RetrievedDate date field for convenience
       df[,"RetrievedDate"] <- df[,date_field]
+      # Ditto for time
+      df[,"RetrievedDate"] <- df[,date_field]
       # Set file date
       if(nrow(df) > 0) {
        df[,"FileDate"] <- .self$date
@@ -113,7 +125,7 @@ DataFile <- setRefClass("DataFile",
       # Prepend source to feature names
       if(prepend_source) {
         colnames(df) <- lapply(colnames(df), function(name) {
-          if(name %in% c('Serial', date_field, 'FileDate')) {
+          if(name %in% c('Serial', date_field, 'FileDate', 'RetrievedDate', 'RetrievedTime', 'Model')) {
             return(name)
           } else {
             return(paste(.self$source, name, sep="."))
