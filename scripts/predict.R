@@ -182,6 +182,7 @@ predictions_hits <- predictions_narrow[predictions_narrow$Confidence > threshold
 # Write predictions to cloud storage as CSV
 ################################################################################
 
+latest_file_date <- max(predictors_all$FileDate)
 hits_path <- paste(device_group, paste(latest_file_date, "csv", sep="."), sep='/')
 all_path <- paste(device_group, paste(latest_file_date, "all.csv", sep="."), sep='/')
 s3write_using(predictions_hits, write.csv, bucket=results_s3_bucket, object=hits_path, opts=list('row.names'=FALSE))
