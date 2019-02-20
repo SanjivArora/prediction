@@ -196,7 +196,7 @@ bindRowsForgiving <- function(dfs) {
 uniqueBy <- function(xs, f) {
   h <- hash()
   for(x in xs) {
-    h[[as.character(f(x))]] <- x
+    h[[toString(f(x))]] <- x
   }
   return(values(h, simplify=FALSE))
 }

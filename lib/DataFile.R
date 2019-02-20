@@ -112,7 +112,7 @@ DataFile <- setRefClass("DataFile",
       # Create a standardized RetrievedDate date field for convenience
       df[,"RetrievedDate"] <- df[,date_field]
       # Ditto for time
-      df[,"RetrievedDate"] <- df[,date_field]
+      df[,"RetrievedTime"] <- df[,time_field]
       # Set file date
       if(nrow(df) > 0) {
        df[,"FileDate"] <- .self$date
