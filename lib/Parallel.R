@@ -5,7 +5,8 @@ source("lib/Logging.R")
 parallel_log <- getModuleLogger("Parallel")
 
 # Default to number of physical cores, assuming 2-way hyperthreading
-default_ncores = max(1, (detectCores() / 2) - 1)
+default_ncores = max(1, (detectCores() / 3) - 1)
+default_ncores = ceiling(default_ncores)
 
 # Wrap parallel lapply implementation to allow easy debugging and change of backend
 plapply <- function(l, f, parallel=TRUE, ncores=NA) {
