@@ -20,14 +20,15 @@ rlimit_stack(2**25)
 # Note: the following will break calling code that doesn't specify a handle
 # This is to prevent the possiblity of child processes contending
 # for the same connection.
+# Additionally, disable SSL verification (apparently the SSL library also has issues with forking)
+# This is reasonably safe for the intended use (same-region S3 on trusted infrastructure)
 require(curl)
 fetch_memory_patched <- {if(exists('fetch_memory_patched')) fetch_memory_patched else FALSE}
 if(!fetch_memory_patched) {
   parallel_log$info("Patching curl_fetch_memory")
   orig_fetch <- getFromNamespace('curl_fetch_memory', 'curl')
   noreuse_fetch <- function(url, handle) {
-    #if(class(handle)!="curl_handle") {stop(class(handle))}
-    handle_setopt(handle, forbid_reuse=TRUE)
+    handle_setopt(handle, forbid_reuse=TRUE, ssl_verifyhost=FALSE, ssl_verifypeer=FALSE)
     res <- orig_fetch(url, handle)
     return(res)
   }
@@ -38,7 +39,7 @@ if(!fetch_memory_patched) {
 # Wrap parallel lapply implementation to allow easy debugging and change of backend
 # If purge_curl is true, then inject a new empty httr CURL connection pool
 # This is to work around the possiblity of child processes resuing the same handles
-plapply <- function(l, f, parallel=TRUE, ncores=NA, purge_curl=TRUE, preschedule=TRUE) {
+plapply <- function(l, f, parallel=TRUE, ncores=NA, purge_curl=TRUE, preschedule=FALSE) {
   if(parallel) {
     if(identical(ncores, NA)) {
       ncores <- default_ncores

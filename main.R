@@ -1,6 +1,8 @@
 # For bartMachine models
 #options(java.parameters = "-Xmx128000m")
 
+source("common.R")
+
 require(dplyr)
 require(memoise)
 require(mlr)
@@ -9,7 +11,7 @@ require(forcats)
 require(magrittr)
 require(plotly)
 
-source("common.R")
+
 
 data_days <- 100
 

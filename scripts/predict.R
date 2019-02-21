@@ -1,3 +1,5 @@
+source("common.R")
+
 require(dplyr)
 require(memoise)
 require(mlr)
@@ -8,7 +10,6 @@ require(testit)
 require(aws.ses)
 require(xtable)
 
-source("common.R")
 
 # Threshold for inclusion in prediction shortlist file
 threshold <- 0.8

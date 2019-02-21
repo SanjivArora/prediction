@@ -1,7 +1,7 @@
+source("common.R")
+
 require(magrittr)
 require(feather)
-
-source("common.R")
 
 ################################################################################
 # Config

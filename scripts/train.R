@@ -1,11 +1,11 @@
+source("common.R")
+
 require(dplyr)
 require(memoise)
 require(mlr)
 require(itertools)
 require(forcats)
 require(magrittr)
-
-source("common.R")
 
 # Date of earliest predictor data files to use
 #earliest_file_date <- as.Date("2018-11-01")

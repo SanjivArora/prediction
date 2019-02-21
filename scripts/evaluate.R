@@ -1,3 +1,5 @@
+source("common.R")
+
 require(dplyr)
 require(memoise)
 require(mlr)
@@ -5,8 +7,6 @@ require(itertools)
 require(forcats)
 require(magrittr)
 require(rstudioapi)
-
-source("common.R")
 
 
 ################################################################################
