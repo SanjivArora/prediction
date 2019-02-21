@@ -39,7 +39,7 @@ if(!fetch_memory_patched) {
 # Wrap parallel lapply implementation to allow easy debugging and change of backend
 # If purge_curl is true, then inject a new empty httr CURL connection pool
 # This is to work around the possiblity of child processes resuing the same handles
-plapply <- function(l, f, parallel=TRUE, ncores=NA, purge_curl=TRUE, preschedule=FALSE) {
+plapply <- function(l, f, parallel=TRUE, ncores=NA, purge_curl=TRUE, preschedule=TRUE) {
   if(parallel) {
     if(identical(ncores, NA)) {
       ncores <- default_ncores
