@@ -27,18 +27,9 @@ selected_features <- FALSE
 # For generating portable data sets, breaks modeling
 #replace_nas=FALSE
 
-
 device_models <- device_groups[["trial_prod"]]
 #device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
-
-
-################################################################################
-# Establish an S3 connection so library works correctly with child processes
-# (using S3 in parallel fails without this)
-################################################################################
-
-bucketlist() %>% invisible
 
 ################################################################################
 # Feature Names

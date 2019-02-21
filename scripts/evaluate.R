@@ -10,13 +10,6 @@ source("common.R")
 
 
 ################################################################################
-# Establish an S3 connection so library works correctly with child processes
-# (using S3 in parallel fails without this)
-################################################################################
-
-bucketlist() %>% invisible
-
-################################################################################
 # Get devices to use, if this is not specified as an argument use default value
 ################################################################################
 
