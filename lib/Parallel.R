@@ -39,10 +39,14 @@ if(!fetch_memory_patched) {
 # Wrap parallel lapply implementation to allow easy debugging and change of backend
 # If purge_curl is true, then inject a new empty httr CURL connection pool
 # This is to work around the possiblity of child processes resuing the same handles
-plapply <- function(l, f, parallel=TRUE, ncores=NA, purge_curl=TRUE, preschedule=TRUE) {
+plapply <- function(l, f, parallel=TRUE, ncores=NA, purge_curl=TRUE, preschedule=TRUE, gc=TRUE) {
   if(parallel) {
     if(identical(ncores, NA)) {
       ncores <- default_ncores
+    }
+    if(gc) {
+      # Run garbage collection to minimize duplicated work in children
+      gc(verbose=FALSE, full=TRUE)
     }
     wrapped_f <- function(...) {
       #print(paste("pid:", Sys.getpid()))
@@ -55,8 +59,9 @@ plapply <- function(l, f, parallel=TRUE, ncores=NA, purge_curl=TRUE, preschedule
     results <- mclapply(l, f, mc.cores=ncores, mc.cleanup=TRUE, mc.preschedule=preschedule)
     have_errors <- filterBy(results, function(r) attributes(r)$class=="try-error")
     if(length(have_errors) > 0) {
-      parallel_log$warn(paste(length(have_errors), "exceptions from child processes, rethrowing first exception"))
+      parallel_log$warn(paste(length(have_errors), "exceptions from child processes, rethrowing first exception:"))
       e <- attributes(have_errors[[1]])$condition
+      print(e)
       stop(e)
     }
   } else {

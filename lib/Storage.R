@@ -53,7 +53,7 @@ getBucketAll <- function(bucket, ...) {
 
 # Get matching paths for files stored as <date>/<x> for specified number of days.
 # Return paths matching specified pattern (match all by default)
-getCloudFiles <- function(bucket, days=NA, end_date=NA, pattern='*', parallel=TRUE) {
+listCloudFiles <- function(bucket, days=NA, end_date=NA, pattern='*', parallel=TRUE, verbose=FALSE) {
   if(is.na(end_date)) {
     end_date <- Sys.Date()
   }
@@ -62,16 +62,20 @@ getCloudFiles <- function(bucket, days=NA, end_date=NA, pattern='*', parallel=TR
   }
   dates <- seq.Date(from=end_date-(days-1), to=end_date, by=1)
   date_strings <- as.character(dates, '%Y%m%d')
-  file_sets <- plapply(
-    date_strings,
-    function(date_string) {
-      fs <- getBucketAll(bucket, prefix=paste(date_string, '/', sep=''))
-      names <- fs %>% lapply(function(f) f$Key) %>% unname %>% unlist
-      matches <- grep(pattern, names)
-      names <- names[matches]  
-      return(names)
-    },
-    parallel=parallel
+  timeit(
+    file_sets <- plapply(
+      date_strings,
+      function(date_string) {
+        fs <- getBucketAll(bucket, prefix=paste(date_string, '/', sep=''))
+        names <- fs %>% lapply(function(f) f$Key) %>% unname %>% unlist
+        matches <- grep(pattern, names)
+        names <- names[matches]  
+        return(names)
+      },
+      parallel=parallel
+    ),
+    "getting file sets",
+    verbose=verbose
   )
   res <- concat(file_sets)
   return(res)

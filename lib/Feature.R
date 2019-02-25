@@ -12,7 +12,7 @@ readFeaturesSingle <- function(name) {
 
 readFeatures <- function(names) {
   l <- lapply(names, readFeaturesSingle)
-  features <- Reduce(append, l, list())
+  features <- concat(l)
   return(features)
 }
 

@@ -3,10 +3,6 @@ require(plyr)
 require(rlang)
 require(magrittr)
 
-substrRight <- function(x, n){
-  substr(x, nchar(x)-n+1, nchar(x))
-}
-
 # If object is a hash, return list of values, otherwise return original object
 valuesIfHash <- function(x) {
   if(class(x)=="hash") {
@@ -16,21 +12,33 @@ valuesIfHash <- function(x) {
   }
 }
 
+# Convert a singly linked list in (<item>, <next>) format with empty list terminator to regular list
+fromSingleLinked <- function(ll) {
+  res <- list()
+  while(length(ll) != 0) {
+    res[[length(res) + 1]] <- ll[[1]]
+    ll <- ll[[2]]
+  }
+  return(res)
+}
+
 # Take a list/vector of objects and a function mapping objects to keys, return a hash of objects grouped by string representation of key
+# While building the results, represent values for each key as a singly linked list. This is to retain O(n) performance - both append()
+# and building the list by index scale poorly here.
 groupBy <- function(xs, f) {
   xs <- valuesIfHash(xs)
   h <- hash()
   for(x in xs) {
-    key <- f(x)
     # Convert key to string to work around lack of broad type support in the hash library
-    key <- toString(key)
-    if(has.key(key, h)[[1]]) {
-      l <- h[[key]]
-    } else {
-      l <- list()
+    key <- f(x)
+    key <- as.character(key)
+    if(!has.key(key, h)[[1]]) {
+      h[[key]] <- list()
     }
-    h[[key]] <- append(l, list(x))
+    h[[key]] <- list(x, h[[key]])
   }
+  # Convert to regular lists
+  h <- mapHash(h, fromSingleLinked)
   return(h)
 }
 
@@ -66,9 +74,11 @@ filterBy <- function(xs, f) {
 # filterBy implementation for lists/vectors
 filterListBy <- function(xs, f) {
   hits <- list()
+  i <- 1
   for(x in xs) {
     if(isTrue(f(x))) {
-      hits <- append(hits, list(x))
+      hits[[i]] <- x
+      i <- i + 1
     }
   }
   return(hits)
@@ -105,7 +115,7 @@ splitDataFrame <- function(df) {
   len <- nrow(df)
   if(len==0) {return(res)}
   for(i in 1:len) {
-    res <- append(res, list(df[i,]))
+    res[[i]] <- df[i,]
   }
   return(res)
 }
@@ -164,8 +174,10 @@ stochasticSelection <- function(x, size) {
     return(list())
   }
   selected <- list()
+  i <- 1
   while(size >= length(x)) {
-    selected <- append(selected, x)
+    selected[[i]] <- x
+    i <- i + 1
     size <- size - length(x)
   }
   sampled <- sample(x, toIntegerStochastic(size), replace=FALSE)
@@ -250,19 +262,29 @@ excludeFromHash <- function(h, excl=c()) {
   h[keys(h)[!keys(h) %in% excl]]
 }
 
-# Rebuild a list, ignoring names (this is distinct from unname)
-stripNames <- function(l) {
-  res = list()
-  if (length(l) == 0) {
-    return(res)
-  }
-  for(i in 1:length(l)) {
-    res <- append(res, list(l[[i]]))
+# Concatenate a list of lists efficiently
+concat <- function(ls) {
+  res <- list()
+  i <- 1
+  for(l in ls) {
+    for(x in l) {
+      res[[i]] <- x
+      i <- i + 1
+    }
   }
   return(res)
 }
 
-# Concatenate a list of lists
-concat <- function(ls) {
-  Reduce(append, ls)
+timeit <- function(expr, descr=NA, verbose=TRUE, gcFirst=FALSE) {
+  if(verbose && !(identical(descr, NA))) {
+    print(paste("Start", descr))
+  }
+  time <- system.time(expr, gcFirst=gcFirst)
+  if(verbose) {
+    if(!identical(descr, NA)) {
+      print(paste("Runtime for", paste(descr, ":", sep="")))
+    }
+    print(time)
+  }
+  return(time)
 }

@@ -12,7 +12,6 @@ require(magrittr)
 require(plotly)
 
 
-
 data_days <- 100
 
 #sample_rate <- 1 #0.2

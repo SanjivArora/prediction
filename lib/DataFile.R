@@ -33,11 +33,7 @@ DataFile <- setRefClass("DataFile",
       .self$region <- parts[[1]]
       .self$model <- parts[[2]]
       .self$source <- parts[[3]]
-      # Specify date format as recognizing this is, surprisingly, a performance bottleneck
-      .self$date <- lubridate::as_date(parts[[4]], tz=timezone, format="%Y%m%d")
-      if(is.na(.self$date)) {
-        stop(paste("Unable to parse date string: ", parts[[4]]))
-      }
+      .self$date <- as.Date(parts[[4]], format="%Y%m%d")
       .self$default_date_fields <- list("GetDate", "ChargeCounterDate")
       .self$default_time_fields <- list("GetTime", "ChargeCounterTime")
     },
@@ -243,11 +239,19 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, sources=
 
 # Get instances for cloud files stored as <date>/<x> for specified number of days.
 # Filter for regions, models and sources if given (match all by default)
-instancesForBucket <- function(bucket=default_bucket, days=90, end_date=NA, regions=NA, models=NA, sources=NA, cls=DataFile) {
+instancesForBucket <- function(bucket=default_bucket, days=90, end_date=NA, regions=NA, models=NA, sources=NA, cls=DataFile, verbose=TRUE, parallel=TRUE) {
   pattern <- makePattern(regions=regions, models=models, sources=sources)
-  paths <- getCloudFiles(bucket, days=days, end_date=end_date, pattern=pattern)
+  timeit(
+    paths <- listCloudFiles(bucket, days=days, end_date=end_date, pattern=pattern, parallel=parallel),
+    "listing cloud files",
+    verbose=verbose
+  )
   paths <- lapply(paths, function(path) paste("s3://", bucket, '/', path, sep=''))
-  res <- lapply(paths, function(path) cls(path=path))
+  timeit(
+    res <- plapply(paths, function(path) cls(path=path), parallel=parallel),
+    "instantiating file objects",
+    verbose=verbose
+  )
   return(res)
 }
 

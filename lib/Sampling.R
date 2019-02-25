@@ -235,8 +235,6 @@ dailyFileSetToDataframe <- function(daily_file_set, features=features) {
 visitPredictorDataframes <- function(data_files, required_sources, f, features=FALSE, parallel=FALSE, ncores=NA) {
   daily_file_sets <- getDailyFileSetsHash(data_files, required_sources)
   sampling_log$debug(paste("Visiting", length(daily_file_sets), "daily data frames"))
-  # Run garbage collection to minimize duplicated work in children
-  gc(verbose=FALSE, full=TRUE)
   visit <- function(date_string) {
     file_sets <- daily_file_sets[[date_string]]
     print(date_string)
