@@ -2,6 +2,7 @@ source("common.R")
 
 require(magrittr)
 require(feather)
+require(purrr)
 
 ################################################################################
 # Config
@@ -11,15 +12,16 @@ input_bucket <- 'ricoh-prediction-data-test2'
 output_bucket <- 'ricoh-prediction-data-aligned'
 
 parallel <- TRUE
-days <- 1000
-#days <- 30
+#days <- 1000
+days <- 30
 
 margin_days <- 7
 
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count')
-#models <- c('E16', 'E15', 'C08') 
-models <- c('E15')
+#sources <- c('PMCount')
+models <- c('E16', 'E15', 'C08') 
+#models <- c('E15')
 
 ###################################################
 # Functions
@@ -62,45 +64,59 @@ processSource <- function(src) {
 
 # Return a hash mapping dates to dataframes containing rows for those dates
 processModel <- function(model, fs, region, src) {
+  index_fields_all <- c('Serial', 'RetrievedDate', 'RetrievedTime', 'FileDate')
+  index_fields <- index_fields_all[1:3]
   print(paste("Processing", length(fs), src, "data files for", model, "in", region))
   timeit(
     dfs <- plapply(fs, function(f) f$getDataFrame(), parallel=parallel),
     "getting dataframes"
   )
-  # For each dataframe, group lines by date on which the data is retrieved from @remote
+  all_filedates <- lapply(fs, function(f) f$date %>% as.character)
+  filedate_to_df <- hash(all_filedates, dfs)
+  # Get indices
   timeit(
-    date_groups <- plapply(
+    index_parts <- plapply(
       dfs,
-      function(df) {
-        # Run garbage collection to free up memory for siblings
-        gc(verbose=FALSE, full=TRUE)
-        df %>% splitDataFrame %>% groupBy(function(row) row$RetrievedDate) %>% return
-      },
+      function(df) df[,index_fields_all],
       parallel=parallel
     ),
-    "grouping into dates"
+    "getting indices"
   )
 
+  # Take most recent readings
+  timeit({
+      indices <- bindRowsForgiving(index_parts)
+      # Keep most recent (Serial, RetrievedDate, RetrievedTime, FileDate)
+      indices %<>% arrange(desc(FileDate))
+      indices %<>% distinct(Serial, RetrievedDate, RetrievedTime, .keep_all=TRUE)
+    },
+    "getting indices for most recent readings"
+  )
+  
   # Get a complete set of dates
   # Ignore dates from the future and dates older than <days> + <margin>
   timeit({
-    dates <- Reduce(union, lapply(date_groups, function(x) x %>% keys))
+    dates <- indices$RetrievedDate %>% unique
     dates %<>% filterBy(function(d) d<= Sys.Date() && d >= Sys.Date() - (days + margin_days))
     dates %<>% unlist %>% sort},
-    "getting complete set of dates"
+    "getting complete set of reading dates"
   )
   
   timeit(
     dfs <- plapply(
       dates,
       function(date) {
-        # Run garbage collection to free up memory for siblings
-        gc(verbose=FALSE, full=TRUE)
-        parts <- lapply(date_groups, function(h) getWithDefault(h, date, list()))
-        rows <- concat(parts)
-        # Remove duplicate samples
-        rows <- uniqueBy(rows, function(r) c(r$Serial, r$RetrievedDate, r$RetrievedTime))
-        res <- bindRowsForgiving(rows)
+        idxs <- indices[indices$RetrievedDate==date,]
+        filedates <- idxs$FileDate %>% unique %>% as.character
+        parts <- lapply(
+          filedates,
+          function(filedate) {
+            df <- filedate_to_df[[filedate]]
+            res <- inner_join(idxs, df, by=index_fields_all)
+            return(res)
+          }
+        )
+        res <- bindRowsForgiving(parts)
         return(res)
       },
       parallel=parallel
@@ -120,8 +136,6 @@ write_data <- function(date_to_df, model, region, src) {
       write_df(df, date, model, region, src)
     },
     parallel=parallel,
-    # Limit parallelism as this is very memory intensive
-    ncores=8
   )
 }
 
