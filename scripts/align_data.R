@@ -12,8 +12,8 @@ input_bucket <- 'ricoh-prediction-data-test2'
 output_bucket <- 'ricoh-prediction-data-aligned'
 
 parallel <- TRUE
-#days <- 1000
-days <- 30
+days <- 1000
+#days <- 30
 
 margin_days <- 7
 

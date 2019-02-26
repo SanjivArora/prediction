@@ -31,7 +31,7 @@ groupBy <- function(xs, f) {
   for(x in xs) {
     # Convert key to string to work around lack of broad type support in the hash library
     key <- f(x)
-    key <- as.character(key)
+    key <- toString(key)
     if(!has.key(key, h)[[1]]) {
       h[[key]] <- list()
     }
@@ -244,11 +244,11 @@ equal <- function(l) {
   return(res)
 }
 
-# (xs, f) -> hash[as.character(x)] = f(x)
+# (xs, f) -> hash[toString(x)] = f(x)
 mapToHash <- function(xs, f) {
   res <- hash()
   for (x in xs) {
-    res[[as.character(x)]] <- f(x)
+    res[[toString(x)]] <- f(x)
   }
   return(res)
 }
