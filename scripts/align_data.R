@@ -71,7 +71,7 @@ processModel <- function(model, fs, region, src) {
     dfs <- plapply(fs, function(f) f$getDataFrame(), parallel=parallel),
     "getting dataframes"
   )
-  all_filedates <- lapply(fs, function(f) f$date %>% as.character)
+  all_filedates <- lapply(fs, function(f) f$date %>% as.character('%Y%m%d'))
   filedate_to_df <- hash(all_filedates, dfs)
   # Get indices
   timeit(
@@ -96,9 +96,11 @@ processModel <- function(model, fs, region, src) {
   # Get a complete set of dates
   # Ignore dates from the future and dates older than <days> + <margin>
   timeit({
-    dates <- indices$RetrievedDate %>% unique
-    dates %<>% filterBy(function(d) d<= Sys.Date() && d >= Sys.Date() - (days + margin_days))
-    dates %<>% unlist %>% sort},
+      dates <- indices$RetrievedDate %>% unique
+      dates %<>% subset(dates<= Sys.Date() && dates >= Sys.Date() - (days + margin_days))
+      dates %<>% unlist %>% sort
+      date_strings <- dates %>% as.character('%Y%m%d')
+    },
     "getting complete set of reading dates"
   )
   
@@ -107,7 +109,7 @@ processModel <- function(model, fs, region, src) {
       dates,
       function(date) {
         idxs <- indices[indices$RetrievedDate==date,]
-        filedates <- idxs$FileDate %>% unique %>% as.character
+        filedates <- idxs$FileDate %>% unique %>% as.character('%Y%m%d')
         parts <- lapply(
           filedates,
           function(filedate) {
@@ -124,7 +126,7 @@ processModel <- function(model, fs, region, src) {
     "building final dataframes"
   )
   
-  res <- hash(dates, dfs)
+  res <- hash(date_strings, dfs)
   return(res)
 }
 
@@ -135,7 +137,7 @@ write_data <- function(date_to_df, model, region, src) {
       df <- date_to_df[[date]]
       write_df(df, date, model, region, src)
     },
-    parallel=parallel,
+    parallel=parallel
   )
 }
 

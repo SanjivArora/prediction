@@ -12,13 +12,14 @@ valuesIfHash <- function(x) {
   }
 }
 
-# Convert a singly linked list in (<item>, <next>) format with empty list terminator to regular list
+# Convert a singly linked list in (<prev>, item) format with empty list terminator to regular list
 fromSingleLinked <- function(ll) {
   res <- list()
   while(length(ll) != 0) {
-    res[[length(res) + 1]] <- ll[[1]]
-    ll <- ll[[2]]
+    res[[length(res) + 1]] <- ll[[2]]
+    ll <- ll[[1]]
   }
+  res %<>% rev
   return(res)
 }
 
@@ -35,7 +36,7 @@ groupBy <- function(xs, f) {
     if(!has.key(key, h)[[1]]) {
       h[[key]] <- list()
     }
-    h[[key]] <- list(x, h[[key]])
+    h[[key]] <- list(h[[key]], x)
   }
   # Convert to regular lists
   h <- mapHash(h, fromSingleLinked)
