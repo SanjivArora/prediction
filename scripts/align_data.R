@@ -23,7 +23,7 @@ sources <- c('PMCount', 'Count')
 models <- c('E16', 'E15', 'C08') 
 #models <- c('E15')
 
-###################################################
+################################################################################
 # Functions
 ################################################################################
 
@@ -55,7 +55,7 @@ processSource <- function(src) {
       )
       #date_to_df[keys(date_to_df)] %>% lapply(nrow) %>% print
       timeit(
-        write_data(date_to_df, model, region, src),
+        writeData(date_to_df, model, region, src),
         paste("writing", model)
       )
     }
@@ -130,19 +130,19 @@ processModel <- function(model, fs, region, src) {
   return(res)
 }
 
-write_data <- function(date_to_df, model, region, src) {
+writeData <- function(date_to_df, model, region, src) {
   plapply(
     keys(date_to_df),
     function(date) {
       df <- date_to_df[[date]]
-      write_df(df, date, model, region, src)
+      writeDF(df, date, model, region, src)
     },
     parallel=parallel
   )
 }
 
-write_df <- function(df, date, model, region, src) {
-  # <date>/region/model/source.feather
+writeDF <- function(df, date, model, region, src) {
+  # <date>/<region>/<model>/<source>.feather
   path <- paste(date, region, model, paste(src, "feather", sep="."), sep="/")
   print(paste("Writing", path))
   s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)

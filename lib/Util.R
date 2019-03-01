@@ -97,6 +97,11 @@ filterHashByValue <- function(h, f) {
   return(res)
 }
 
+# Remove NA values
+filterNA <- function(xs) {
+  filterBy(xs, function(x) !identical(x, NA))
+}
+
 # Join paths, with absolute paths replacing previous components
 joinPaths <- function(...) {
   joinTwo <- function(p1, p2) {

@@ -80,3 +80,37 @@ listCloudFiles <- function(bucket, days=NA, end_date=NA, pattern='*', parallel=T
   res <- concat(file_sets)
   return(res)
 }
+
+cloudFileExists <- function(path, bucket) {
+  head_object(path, bucket)[[1]]
+}
+
+# Request cloud file, return content or NA if file does not exist
+getCloudFile <- function(path, bucket) {
+  object <- get_object(path, bucket)
+  # If the response is small, check if it looks like an S3 NoSuchKey XML error message.
+  # Check for the specific requested key in the response to minimize the chance of matching legitimate file contents.
+  # This is necessary as aws.s3::get_object() returns the raw result regardless of whether the file exists.
+  if (length(object) < length(path) + 500) {
+    text <- object %>% rawToChar
+    # If using an S3 URI, strip s3://<bucket>/ so we match the object key
+    path %<>% str_remove('^s3://[^/]+/')
+    pattern <- paste('<\\?xml', 'NoSuchKey', paste('<Key>', path, '</Key>', sep=''), sep='.*')
+    if(grep(pattern, text) %>% length > 0) {
+      return(NA)
+    }
+  }
+  return(object)
+}
+
+# Helper function to read an in-memory representation of a cloud feather file
+readFeatherObject <- function(bytes) {
+  p <- tempfile()
+  p<-'/tmp/a.feather'
+  f <- file(p, open='wb')
+  on.exit(unlink(p))
+  writeBin(bytes, f)
+  close(f)
+  res <- read_feather(p)
+  return(res)
+}
