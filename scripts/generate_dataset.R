@@ -1,11 +1,9 @@
-
-
-################################################################################
-# Functisource("common.R")
+source("common.R")
 
 require(magrittr)
 require(feather)
 require(lubridate)
+require(data.table)
 
 ################################################################################
 # Config
@@ -18,16 +16,22 @@ parallel <- TRUE
 #days <- 1000
 days <- 30
 
+# Maximum allowed time difference between readings, measured from first source to each subsequent source
+max_hours <- 12
+
 regions <- c('RNZ')
-sources <- c('PMCount', 'Count')
+sources <- c('PMCount', 'Count', 'RomVer')
 #sources <- c('PMCount')
 #models <- c('E16', 'E15', 'C08') 
-models <- c('C08')
+models <- c('E16')
+
+################################################################################
+# Functions
 ################################################################################
 
 getData <- function(days, ...) {
   dates <-  Sys.Date() - lubridate::days(0:days-1)
-  parts <- lapply(dates, function(date) getDataForDate(date, ...))
+  parts <- plapply(dates, function(date) getDataForDate(date, ...), parallel=parallel)
   parts %<>% filterNA
   if(length(parts)==0) {
     return(NA)
@@ -51,23 +55,35 @@ getDataForDate <- function(date, region, model, sources=sources, bucket=input_bu
     if(identical(candidates, NA)) {
       return(NA)
     }
-    print(nrow(res))
-    print(ncol(res))
-    print(nrow(candidates))
+    #print(nrow(res))
+    #print(ncol(res))
+    #print(nrow(candidates))
     res %<>% mergeMatching(candidates)
-    print(nrow(res))
-    print(ncol(res))
+    #print(nrow(res))
+    #print(ncol(res))
   }
   return(res)
 }
 
-x1 <- NA
-x2 <- NA
-mergeMatching <- function(df1, df2) {
-  index_fields <- c('Serial', 'RetrievedDate', 'RetrievedTime')
-  x1 <<- df1
-  x2 <<- df2
-  res <- inner_join(df1, df2, by=index_fields[1:2])
+mergeMatching <- function(df1, df2, hours=max_hours) {
+  joined <- inner_join(df1, df2, by=c('Serial'))
+  # set names for canonical values
+  canonical_names <- c('RetrievedDate', 'RetrievedTime', 'FileDate', 'Model')
+  for(name in canonical_names) {
+    new <- paste(name, ".x", sep="")
+    if(new %in% names(joined)) {
+      setnames(joined, c(new), c(name))
+    }
+  }
+  # Calculate time deltas
+  time_x <- makeDateTimes(joined$RetrievedDate, joined$RetrievedTime)
+  time_y <- makeDateTimes(joined$RetrievedDate.y, joined$RetrievedTime.y)
+  joined$timeDiff <- time_x - time_y
+  # Take reading with lowest time difference
+  grouped <- group_by(joined, Serial, RetrievedDate, RetrievedTime)
+  res <- grouped %>% arrange(abs(timeDiff)) %>% filter(row_number() == 1) %>% ungroup
+  # Filter out results with a time difference greater than max_hours
+  res %<>% filter(abs(timeDiff) <= 3600 * hours)
   return(res)
 }
 
@@ -82,7 +98,7 @@ readDF <- function(dates, region, model, source, bucket=input_bucket) {
     return(NA)
   }
   res <- bindRowsForgiving(parts)
-  print(paths)
+  #print(paths)
   return(res)
 }
 
@@ -105,3 +121,5 @@ for(region in regions) {
     print(ncol(res))
   }
 }
+
+#hist(res$timeDiff %>% as.integer, breaks=300)

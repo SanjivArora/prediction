@@ -18,7 +18,7 @@ days <- 1000
 margin_days <- 7
 
 regions <- c('RNZ')
-sources <- c('PMCount', 'Count')
+sources <- c('PMCount', 'Count', 'RomVer')
 #sources <- c('PMCount')
 models <- c('E16', 'E15', 'C08') 
 #models <- c('E15')

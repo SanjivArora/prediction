@@ -106,7 +106,6 @@ getCloudFile <- function(path, bucket) {
 # Helper function to read an in-memory representation of a cloud feather file
 readFeatherObject <- function(bytes) {
   p <- tempfile()
-  p<-'/tmp/a.feather'
   f <- file(p, open='wb')
   on.exit(unlink(p))
   writeBin(bytes, f)
