@@ -25,12 +25,15 @@ delta_days <- c(1, 7)
 
 selected_features <- FALSE
 
+
 # For generating portable data sets, breaks modeling
 #replace_nas=FALSE
 
 device_models <- device_groups[["trial_prod"]]
 #device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
+
+#device_models <- c("E18")
 
 ################################################################################
 # Feature Names
@@ -46,10 +49,10 @@ if(selected_features) {
 # SC & Jam Codes
 ################################################################################
 
-service_codes <- readCodes(regions, device_models, target_codes, days=days, end_date=end_date, parallel=parallel)
+service_codes <- readCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
 serial_to_service_codes <- makeSerialToCodes(service_codes)
 
-jams <- readJamCodes(regions, device_models, target_codes, days=days, end_date=end_date, parallel=parallel)
+jams <- readJamCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
 serial_to_jams <- makeSerialToCodes(jams)
 
 serials <- append(service_codes$Serial, jams$Serial) %>% unique
@@ -65,16 +68,13 @@ for (serial in serials){
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=days, end_date=end_date)
-if(!is.na(data_days)) {
-  file_sets <- tail(file_sets, data_days)
-}
+file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=data_days, end_date=end_date)
+
 data_files <- unlist(file_sets)
 
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
-  codes,
   sample_rate,
   sc_code_days,
   delta_days=delta_days,
@@ -88,7 +88,7 @@ predictors_all <- dataFilesToDataset(
 # Clean and condition dataset
 ################################################################################
 
-predictors <- cleanPredictors(predictors_all) %>% filterSingleValued
+predictors <- cleanPredictors(predictors_all, randomize_order=randomize_predictor_order) %>% filterSingleValued
 
 # Stats for dataset
 print(paste(nrow(predictors), "total observations"))

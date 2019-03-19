@@ -270,7 +270,6 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
   latest_sc_file_date <- as.Date(latest$date)
   # Wait an additional period for SC data to be up to date for a machine, the lag can be a few days.
   latest_data_file_date <- latest_sc_file_date - sc_code_days - sc_data_buffer
-  # TODO: check per region+model combination
   filtered_data_files <- filterBy(
     all_files,
     function(f) {
@@ -286,7 +285,7 @@ getEligibleModelDataFiles <- function(region, model, sources, sc_code_days=14, s
 getEligibleFileSets <- function(regions, models, sources, days=NA, end_date=NA, ...) {
   # Don't restrict sources, we need code files for filtering date ranges
   all_files <- instancesForBucket(regions=regions, models=models, days=days, end_date=end_date)
-
+  
   filtered_files <- list()
   for(region in regions) {
     for(model in models) {

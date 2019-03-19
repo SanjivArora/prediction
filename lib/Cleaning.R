@@ -21,7 +21,7 @@ randomizeOrder <- function(predictors) {
 
 # Eliminate predictors where Count and PMCount data are out of sync
 filterDesynced <- function(preds, date_fields=c('GetDate', 'ChargeCounterDate')) {
-  clean_log$debug("Filtering desyncrhonized observations")
+  clean_log$debug("Filtering desynchronized observations")
   date_vals <- preds[,date_fields]
   deltas <- date_vals[,1] - date_vals[,2]
   preds <- preds[abs(deltas) <= 1,]
@@ -132,9 +132,11 @@ processRomVer <- function(predictors) {
 }
 
 # Includes everything but filterIneligibleFileds
-cleanPredictors <- function(predictors) {
+cleanPredictors <- function(predictors, randomize_order=randomize_predictor_order) {
+  if(randomize_order) {
+    predictors %<>% randomizeOrder
+  }
   predictors %>%
-    randomizeOrder %>%
     filterDesynced %>%
     filterDuplicates %>%
     relativeReplacementDates %>%

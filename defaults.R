@@ -10,7 +10,7 @@ sources=c('PMCount', 'Count', 'RomVer')
 feature_files <- c('top.txt')
 selected_features <- TRUE
 
-# Number of days of predictor data files to use for training
+# Maximum number of days of predictor data files to use for training
 data_days <- 1200
 
 # Fraction of observations to use
@@ -99,8 +99,6 @@ factor_fields <- c('Model')
 # Fields to exclude
 exclude_fields <- c('Serial')
 
-# Date of earliest predictor data files to use for train/predict (default to use up to 90 days)
-days <- 90
 end_date <- NA
 
 models_s3_bucket <- 'ricoh-prediction-models'
@@ -111,3 +109,5 @@ default_email_to <- 'pvanrensburg@ricoh.co.nz'
 default_device_group <- "trial_prod"
 
 replace_nas <- TRUE
+
+randomize_predictor_order <- TRUE

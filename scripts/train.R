@@ -63,7 +63,6 @@ latest_file_date <- latestFileDate(data_files)
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
-  codes,
   sample_rate,
   sc_code_days,
   delta_days=delta_days,

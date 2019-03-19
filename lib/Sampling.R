@@ -391,7 +391,6 @@ sampleDataFrame <- function(df, date, sample_rate, daily_file_sets, delta_days=c
 
 dataFilesToDataset <- function(data_files,
                                required_sources,
-                               sc_codes,
                                sample_rate=1,
                                sc_days=14,
                                delta_days=c(1, 3, 7),

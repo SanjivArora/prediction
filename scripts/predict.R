@@ -82,7 +82,6 @@ data_files <- unlist(file_sets)
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
-  codes,
   sample_rate,
   sc_code_days,
   delta_days=delta_days,
