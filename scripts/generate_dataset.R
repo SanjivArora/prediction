@@ -63,12 +63,13 @@ getDataForDate <- function(date, region, model, sources=sources, bucket=input_bu
     #print(ncol(res))
   }
   return(res)
+  return(res)
 }
 
 mergeMatching <- function(df1, df2, hours=max_hours) {
   joined <- inner_join(df1, df2, by=c('Serial'))
   # set names for canonical values
-  canonical_names <- c('RetrievedDate', 'RetrievedTime', 'FileDate', 'Model')
+  canonical_names <- c('RetrievedDate', 'RetrievedTime', 'RetrievedDateTime', 'FileDate', 'Model')
   for(name in canonical_names) {
     new <- paste(name, ".x", sep="")
     if(new %in% names(joined)) {

@@ -107,8 +107,9 @@ DataFile <- setRefClass("DataFile",
       df$Serial <- paste(df$Model, df$Serial, sep="")
       # Create a standardized RetrievedDate date field for convenience
       df[,"RetrievedDate"] <- df[,date_field]
-      # Ditto for time
+      # Ditto for time and datetime
       df[,"RetrievedTime"] <- df[,time_field]
+      df[,"RetrievedDateTime"] <- makeDateTimes(df[,"RetrievedDate"], df[,"RetrievedTime"])
       # Set file date
       if(nrow(df) > 0) {
        df[,"FileDate"] <- .self$date
@@ -121,7 +122,7 @@ DataFile <- setRefClass("DataFile",
       # Prepend source to feature names
       if(prepend_source) {
         colnames(df) <- lapply(colnames(df), function(name) {
-          if(name %in% c('Serial', date_field, 'FileDate', 'RetrievedDate', 'RetrievedTime', 'Model')) {
+          if(name %in% c('Serial', date_field, 'FileDate', 'RetrievedDate', 'RetrievedTime', 'RetrievedDateTime', 'Model')) {
             return(name)
           } else {
             return(paste(.self$source, name, sep="."))
@@ -173,7 +174,7 @@ dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
   }
   if(!isFALSE(features)) {
     # TODO: handle deltas
-    additional <- c("Serial", "FileDate", "GetDate", "ChargeCounterDate", "Model")
+    additional <- c("Serial", "FileDate", "GetDate", "GetTime", "GetDateTime", "ChargeCounterDate", "Model")
     features <- append(features, additional)
     features <- intersect(colnames(res), features)
     res <- res[,unlist(features)]
