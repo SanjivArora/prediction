@@ -57,12 +57,19 @@ codesFor <- function(f, days=NA, end_date=NA, parallel=TRUE) {
   if(length(datafiles)==0) {
     stop("No relevant files found")
   }
-  dfs <- plapply(datafiles, function (x) x$getDataFrame(), parallel=parallel)
+  # Filter out results for empty data files
+  dfs <- plapply(datafiles, function (x) tryCatch(x$getDataFrame(), error=function(e) NULL), parallel=parallel)
+  dfs <- filterBy(dfs, function(x) !is.null(x))
   res <- distinct(bindRowsForgiving(dfs))
   return(res)
 }
 
-codesForRegionsAndModels <- function(regions, models, days=NA, end_date=NA, parallel=TRUE) {
-  res <- codesFor(function(f) {f$model %in% models && f$region %in% regions && f$source=='SC'}, days=days, end_date=end_date, parallel=parallel)
+codesForRegionsAndModels <- function(regions=NA, models=NA, days=NA, end_date=NA, source="SC", parallel=TRUE) {
+  res <- codesFor(function(f) {
+    res <- f$source==source
+    if(!identical(NA, regions)) res %<>% f$region %in% regions
+    if(!identical(NA, models)) res %<>% f$model %in% models
+    return(res)
+  }, days=days, end_date=end_date, parallel=parallel)
   return(res)
 }

@@ -205,3 +205,6 @@ top_features <- topModelsFeatures(models, frac=0.5)
 # s3saveRDS(predictors, 'data/predictors.RDS', 'ricoh-prediction-misc')
 # s3saveRDS(service_codes, 'data/service_codes.RDS', 'ricoh-prediction-misc')
 # s3saveRDS(responses, 'data/responses.RDS', 'ricoh-prediction-misc')
+
+# Overall stats for service codes
+#service_codes <- readCodes(NA, NA, target_codes, days=data_days, end_date=end_date, parallel=parallel)
