@@ -73,7 +73,7 @@ predictors_all <- dataFilesToDataset(
 # Clean and condition dataset
 ################################################################################
 
-predictors_orig <- cleanPredictors(predictors_all, randomize_order=randomize_predictor_order) %>% filterSingleValued
+predictors_orig <- cleanPredictors(predictors_all, randomize_order=randomize_predictor_order, relative_replacement_dates = FALSE) %>% filterSingleValued
 predictors <- predictors_orig
 
 # Stats for dataset
@@ -126,8 +126,8 @@ grep('.*Developer*', predictors %>% names()) -> p1; names(predictors)[p1] %>% pr
 grep('.*Dev.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*Vtref.Display.Setting.Current.Value.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*TD.Sens.Vt.Disp.Current.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-
-
+grep('.*Hum*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*Date.Dev.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
 #predictors[,p1] %>% View
 serials <- predictors$Serial
@@ -227,6 +227,13 @@ td_sens <- c(
   "PMCount.X3210_4_TD.Sens.Vt.Disp.Current.Y.SP3.210.004.Read.Only"
 )
 
+developer_replacement_date <- c(
+  "PMCount.X7950_3_Unit.Replacement.Date.Dev.Unit.K.SP7.950.003.Read.Only",
+  "PMCount.X7950_26_Unit.Replacement.Date.Dev.Unit.C.SP7.950.026.Read.Only",
+  "PMCount.X7950_49_Unit.Replacement.Date.Dev.Unit.M.SP7.950.049.Read.Only",
+  "PMCount.X7950_72_Unit.Replacement.Date.Dev.Unit.Y.SP7.950.072.Read.Only"
+)
+
 # Commercial
 pages_total <- "Count.X8381_1_Total.Total.PrtPGS.SP8.381.001"
 # Production
@@ -318,6 +325,43 @@ tonerForSerial <- function(serial, color=1) {
 
 LCSn <- function(seqs) {
   Reduce(LCS, seqs)
+}
+
+
+tonerScatterHistForSerials <- function(serials, traces=list(), colors=c("black", "gold1", "magenta2", "royalblue1")) {
+  data <- predictors[predictors$Serial %in% serials,]
+  xs <- list()
+  ys <- list()
+  xlabels <- list()
+  ylabels <- list()
+  xhist <- plot_ly()
+  yhist <- plot_ly()
+  p <- plot_ly()
+  for(i in 1:length(traces)) {
+    t <- traces[[i]]
+    print(t)
+    x <- data[,t[[1]]]
+    y <- data[,t[[2]]]
+    xlabels %<>% append(t[[1]])
+    ylabels %<>% append(t[[2]])
+    name <- t[[3]]
+    xhist %<>% add_trace(x=x, type='histogram', name=paste("x", "hist", name), color=I(colors[[i]]))
+    yhist %<>% add_trace(y=y, type='histogram', name=paste("y", "hist", name), color=I(colors[[i]]))
+    # Axis labels are the longest common subsequence set of names used
+    p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode='markers', color=I(colors[[i]]))
+  }
+  xlabel <- LCSn(xlabels)
+  ylabel <- LCSn(ylabels)
+  p %<>% layout(xaxis=list(title=xlabel), yaxis=list(title=ylabel))
+  all <- subplot(
+    xhist, 
+    plotly_empty(), 
+    p, 
+    yhist,
+    nrows = 2, heights = c(0.2, 0.8), widths = c(0.8, 0.2), 
+    shareX = TRUE, shareY = TRUE, titleX = TRUE, titleY = TRUE
+  )
+  print(all)
 }
 
 tonerScatterForSerials <- function(serials, traces=list()) {
@@ -466,7 +510,7 @@ for(i in 1:length(colors)) {
     #c(toner_per_coverage[[i]], pages_total, colors[[i]])
     #c(toner_per_coverage[[i]], "Serial", colors[[i]])
     #c(toner_per_coverage[[i]], "RetrievedDateTime", colors[[i]])
-    c(toner_per_coverage[[i]], developer_rotation[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], developer_rotation[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_pages[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_remaining[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_replacement_count[[i]], colors[[i]])
@@ -474,11 +518,15 @@ for(i in 1:length(colors)) {
     #c(toner_per_coverage[[i]], vtref[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], td_sens[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], vtref[[i]], developer_rotation[[i]])
+    #c(toner_per_coverage[[i]], "PMCount.X7953_16_Operation.Env.Log.PCU.Bk.25.Temp.30.80.Hum.100.SP7.953.016.Read.Only", colors[[i]])
+    #c(toner_per_coverage[[i]], "PMCount.X7953_8_Operation.Env.Log.PCU.Bk.5.Temp.15.80.Hum.100.SP7.953.008.Read.Only", colors[[i]])
+    #c(toner_per_coverage[[i]], developer_replacement_date[[i]], colors[[i]])
+    c(developer_rotation[[i]], developer_replacement_date[[i]], colors[[i]])
   ))
 }
 #tonerScatterForSerials(serials, traces)
-tonerScatterForSerials(head(serials, 250000) %>% tail(10000), traces)
-
+#tonerScatterForSerials(head(serials, 250000) %>% tail(10000), traces)
+tonerScatterHistForSerials(head(serials, 250000) %>% tail(10000), traces)
 # Predict high toner usage
 
 

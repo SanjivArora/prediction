@@ -46,6 +46,24 @@ filterSingleValued <- function(predictors) {
   return(predictors)
 }
 
+# Standard format for recognized dates
+standardizeDates <- function(predictors) {
+  clean_log$debug("Formatting dates")
+  col_names <- colnames(predictors)
+  cols <- col_names[grep('.*replacement\\.date', col_names, ignore.case=T)]
+  
+  if(length(cols)==0) {
+    return(predictors)
+  }
+  
+  to_date <- function(x) {as.Date(as.character(x), '%y%m%d') %>% unlist}
+  date_cols <- predictors[,cols]
+  date_cols <- colwise(to_date)(date_cols)
+  date_cols <- as.data.frame(date_cols)
+  predictors[,cols] <- date_cols
+  return(predictors)
+}
+
 # Convert replacement dates to relative values
 relativeReplacementDates <- function(predictors) {
   clean_log$debug("Making replacement dates relative")
@@ -56,10 +74,6 @@ relativeReplacementDates <- function(predictors) {
     return(predictors)
   }
   
-  to_date <- function(x) {as.Date(as.character(x), '%y%m%d') %>% unlist}
-  date_cols <- predictors[,replacement_date_cols]
-  date_cols <- apply(date_cols, 2, to_date)
-  date_cols <- as.data.frame(date_cols)
   # For some reason R automatically converts the date type to integer
   date_cols <- as.numeric(predictors[,date_field]) - date_cols
   predictors[,replacement_date_cols] <- date_cols
@@ -141,13 +155,15 @@ processRomVer <- function(predictors) {
 }
 
 # Includes everything but filterIneligibleFileds
-cleanPredictors <- function(predictors, randomize_order=randomize_predictor_order) {
+cleanPredictors <- function(predictors, randomize_order=randomize_predictor_order, relative_replacement_dates=TRUE) {
   if(randomize_order) {
     predictors %<>% randomizeOrder
   }
-  predictors %>%
-    filterDesynced %>%
-    filterDuplicates %>%
-    relativeReplacementDates %>%
-    processRomVer
+  predictors %<>% filterDesynced
+  predictors %<>% filterDuplicates
+  predictors %<>% standardizeDates
+  if(relative_replacement_dates) {
+    predictors %<>% relativeReplacementDates
+  }
+  predictors %<>% processRomVer
 }
