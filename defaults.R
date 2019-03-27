@@ -97,7 +97,7 @@ relative_replacement_dates <- TRUE
 factor_fields <- c('Model')
 
 # Fields to exclude
-exclude_fields <- c('Serial')
+exclude_fields <- c('Serial', 'RetrievedDateTime', 'RetrievedDateTime.x', 'RetrievedDateTime.y')
 
 end_date <- NA
 

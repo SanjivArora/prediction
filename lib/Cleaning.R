@@ -75,9 +75,14 @@ replaceNA <-function(data){
   return(temp)
 }
 
+replaceLogical <- function(data) {
+  data %<>% mutate_each(funs(if(is.logical(.)) as.numeric(.) else .))
+  return(data)
+}
+
 # filterIneligibleFields is special - it strips serial numbers. Consequently we don't do this in cleanPredictors.
 # If string_factors is true, convert all strings to factors and include them in the result.
-filterIneligibleFields <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE, replace_na=TRUE) {
+filterIneligibleFields <- function(predictors, string_factors=c("Model"), exclude_cols=c('Serial'), exclude_dates=TRUE, replace_na=TRUE, replace_logical=TRUE) {
   clean_log$debug("Filtering ineligible fields")
   # Convert characters to factors if so specified
   char_cols <- unlist(lapply(predictors, is.character))
@@ -97,7 +102,11 @@ filterIneligibleFields <- function(predictors, string_factors=c("Model"), exclud
   
   # Replace NAs with default numerical value
   if(replace_na) {
-    res <- replaceNA(res)
+    res %<>% replaceNA
+  }
+  
+  if(replace_logical) {
+    res %<>% replaceLogical
   }
   return(res)
 }

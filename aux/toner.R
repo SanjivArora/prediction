@@ -10,6 +10,7 @@ require(itertools)
 require(forcats)
 require(magrittr)
 require(plotly)
+require(qualV)
 
 
 #sample_rate <- 1 #0.2
@@ -31,7 +32,7 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("E16")
+device_models <- c("E17")
 #device_models <- c("V24")
 
 # For toner analysis:
@@ -72,7 +73,8 @@ predictors_all <- dataFilesToDataset(
 # Clean and condition dataset
 ################################################################################
 
-predictors <- cleanPredictors(predictors_all, randomize_order=randomize_predictor_order) %>% filterSingleValued
+predictors_orig <- cleanPredictors(predictors_all, randomize_order=randomize_predictor_order) %>% filterSingleValued
+predictors <- predictors_orig
 
 # Stats for dataset
 print(paste(nrow(predictors), "total observations"))
@@ -120,13 +122,16 @@ grep('.*Toner.Bottle*', predictors %>% names()) -> p1; names(predictors)[p1] %>%
 grep('.*Toner.*End.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*Page.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*Coverage.*K.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Remain*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*Developer*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*Dev.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*Vtref.Display.Setting.Current.Value.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*TD.Sens.Vt.Disp.Current.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
 
-predictors[,p1] %>% View
+
+#predictors[,p1] %>% View
 serials <- predictors$Serial
 serial <- serials[[1]]
-library(plotly)
 
 
 colors <- c("K", "Y", "M", "C")
@@ -164,6 +169,62 @@ pages_prev <- c(
   "Count.X8901_2_Pages.Current.Toner.Y.previous.SP8.901.002",
   "Count.X8901_3_Pages.Current.Toner.M.previous.SP8.901.003",
   "Count.X8901_4_Pages.Current.Toner.C.previous.SP8.901.004"
+)
+
+developer_rotation <- c(
+  "PMCount.X7942_4_PM.Counter.Rotation.Developer.K.SP7.942.004.Read.Only",        
+  "PMCount.X7942_27_PM.Counter.Rotation.Developer.C.SP7.942.027.Read.Only",              
+  "PMCount.X7942_50_PM.Counter.Rotation.Developer.M.SP7.942.050.Read.Only",              
+  "PMCount.X7942_73_PM.Counter.Rotation.Developer.Y.SP7.942.073.Read.Only"
+)
+
+developer_usage_rate <- c(
+  "PMCount.X7960_4_Estimated.Usage.Rate.Developer.K.SP7.960.004.Read.Only",           
+  "PMCount.X7960_27_Estimated.Usage.Rate.Developer.C.SP7.960.027.Read.Only",             
+  "PMCount.X7960_50_Estimated.Usage.Rate.Developer.M.SP7.960.050.Read.Only",             
+  "PMCount.X7960_73_Estimated.Usage.Rate.Developer.Y.SP7.960.073.Read.Only"
+)
+
+developer_pages <- c(
+  "PMCount.X7954_4_PM.Counter.Page.Developer.K.SP7.954.004.Read.Only",                   
+  "PMCount.X7954_27_PM.Counter.Page.Developer.C.SP7.954.027.Read.Only",                  
+  "PMCount.X7954_50_PM.Counter.Page.Developer.M.SP7.954.050.Read.Only",                  
+  "PMCount.X7954_73_PM.Counter.Page.Developer.Y.SP7.954.073.Read.Only"
+)
+
+developer_remaining <- c(
+  "PMCount.X7956_4_Estimated.Remain.Days.Developer.K.SP7.956.004.Read.Only",             
+  "PMCount.X7956_27_Estimated.Remain.Days.Developer.C.SP7.956.027.Read.Only",            
+  "PMCount.X7956_50_Estimated.Remain.Days.Developer.M.SP7.956.050.Read.Only",            
+  "PMCount.X7956_73_Estimated.Remain.Days.Developer.Y.SP7.956.073.Read.Only"
+)
+
+developer_replacement_count <- c(
+  "PMCount.X7853_4_Replacement.Cnt.Developer.K.SP7.853.004.Read.Only",                   
+  "PMCount.X7853_27_Replacement.Cnt.Developer.C.SP7.853.027.Read.Only",                  
+  "PMCount.X7853_50_Replacement.Cnt.Developer.M.SP7.853.050.Read.Only",                  
+  "PMCount.X7853_73_Replacement.Cnt.Developer.Y.SP7.853.073.Read.Only"
+)
+
+developer_unit_remaining <- c(
+  "PMCount.X7956_3_Estimated.Remain.Days.Dev.Unit.K.SP7.956.003.Read.Only",          
+  "PMCount.X7956_26_Estimated.Remain.Days.Dev.Unit.C.SP7.956.026.Read.Only",         
+  "PMCount.X7956_49_Estimated.Remain.Days.Dev.Unit.M.SP7.956.049.Read.Only",         
+  "PMCount.X7956_72_Estimated.Remain.Days.Dev.Unit.Y.SP7.956.072.Read.Only"
+)
+
+vtref <- c(
+  "PMCount.X3230_1_Vtref.Display.Setting.Current.Value.K.SP3.230.001.Read.Only",
+  "PMCount.X3230_2_Vtref.Display.Setting.Current.Value.C.SP3.230.002.Read.Only",
+  "PMCount.X3230_3_Vtref.Display.Setting.Current.Value.M.SP3.230.003.Read.Only",
+  "PMCount.X3230_4_Vtref.Display.Setting.Current.Value.Y.SP3.230.004.Read.Only"
+)
+
+td_sens <- c(
+  "PMCount.X3210_1_TD.Sens.Vt.Disp.Current.K.SP3.210.001.Read.Only",
+  "PMCount.X3210_2_TD.Sens.Vt.Disp.Current.C.SP3.210.002.Read.Only",
+  "PMCount.X3210_3_TD.Sens.Vt.Disp.Current.M.SP3.210.003.Read.Only",
+  "PMCount.X3210_4_TD.Sens.Vt.Disp.Current.Y.SP3.210.004.Read.Only"
 )
 
 # Commercial
@@ -236,30 +297,47 @@ makePlotForSerial <- function(serial, traces, yaxis='y1', mode="lines+markers", 
   return(plot)
 }
 
-tonerForSerial <- function(serial) {
+tonerForSerial <- function(serial, color=1) {
   p <- plot_ly(width=1400, height=1000)
-  p <- makePlotForSerial(serial, coverage_prev_bottle, plot=p)
+  p <- makePlotForSerial(serial, coverage_prev_bottle[[i]], plot=p)
   p %<>% layout(
     title=paste("Toner:", serial),
     #legend = list(x = 100, y = 50),
     #yaxis=list(title="Pages"),
-    yaxis2=list(title="Toner%", overlaying="y", side="right", range=c(0,100))
-    #yaxis2=list(overlaying="y", side="right")
+    yaxis2=list(title="Toner%", overlaying="y", side="right", range=c(0,100)),
+    yaxis3=list(overlaying="y", side="right"),
+    yaxis4=list(overlaying="y", side="right"),
+    yaxis5=list(overlaying="y", side="right")
   )
-  p <- makePlotForSerial(serial, toner, yaxis="y2", plot=p)
+  p <- makePlotForSerial(serial, toner[[color]], yaxis="y2", plot=p)
+  p <- makePlotForSerial(serial, coverage_current[[color]], yaxis="y3", plot=p)
+  p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y4", plot=p)
+  #p <- makePlotForSerial(serial, toner_replaced[[color]], yaxis="y5", plot=p)
   print(p)
+}
+
+LCSn <- function(seqs) {
+  Reduce(LCS, seqs)
 }
 
 tonerScatterForSerials <- function(serials, traces=list()) {
   p <- plot_ly(width=1400, height=1000)
   data <- predictors[predictors$Serial %in% serials,]
+  xlabels <- list()
+  ylabels <- list()
   for(t in traces) {
     print(t)
     x <- data[,t[[1]]]
     y <- data[,t[[2]]]
+    xlabels %<>% append(t[[1]])
+    ylabels %<>% append(t[[2]])
     name <- t[[3]]
+    # Axis labels are the longest common subsequence set of names used
     p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode='markers')
   }
+  xlabel <- LCSn(xlabels)
+  ylabel <- LCSn(ylabels)
+  p %<>% layout(xaxis=list(title=xlabel), yaxis=list(title=ylabel))
   print(p)
 }
 
@@ -273,41 +351,25 @@ add_delta <- function(df, source_name) {
 # Check if toner cartridge has been replace by comparing pages printed for current and previous bottles with prior reading
 add_toner_replacement <- function(df) {
   for(i in 1:length(colors)) {
-    name <- toner_replaced[[i]]
     cur <- df[,pages_current_delta[[i]]]
     prev <- df[,pages_prev_delta[[i]]]
-    df[,name] <- cur<0 | prev!=0
+    df[,toner_replaced[[i]]] <- cur<0 | prev!=0
   }
   return(df)
 }
 
 estimate_bottle_coverage <- function(df) {
   for(i in 1:length(colors)) {
-    name <- coverage_prev_bottle[[i]]
-    df[,name] <- NA
+    df[,coverage_prev_bottle[[i]]] <- NA
     if(nrow(df) < 2) next
     bottle_start <- NA
     prev_bottle_start <- NA
     min_observed_prev <- NA
     # Index for earliest readings of current bottle when we are tracking efficiency
     toner_efficiency_start_index <- 1
-    #df[, toner_efficiency_start_index[[i]]] <- NA
+    df[, toner_per_coverage[[i]]] <- NA
     for(j in 2:nrow(df)) {
-      # Calculate toner efficiency where we have a clean toner and coverage deltas for a given bottle
-      if(toner_efficiency_start_index && (isTRUE(df[j, toner_replaced[[i]]]) | isTRUE(df[j, toner[[i]]] == 0))) {
-        tracked_delta_toner <- (df[toner_efficiency_start_index, toner[[i]]] - df[j-1, toner[[i]]])
-        tracked_delta_coverage <- (df[j-1, coverage[[i]]] - df[toner_efficiency_start_index, coverage[[i]]])
-        
-        # Only calcualte a value when error due to toner precision is reasonable
-        if(is.numeric(tracked_delta_toner) && isTRUE(tracked_delta_toner > 10)) {
-          df[j-1, toner_per_coverage[[i]]] <-  tracked_delta_toner / tracked_delta_coverage
-        }
-        
-        toner_efficiency_start_index <- FALSE
-      }
-      if(df[j,toner_replaced[[i]]] %>% identical(TRUE)) {
-        toner_efficiency_start_index <- j
-        
+      if(df[j, toner_replaced[[i]]] %>% isTRUE) {
         # Estimate total coverage at the point when the bottle was changed by allocating coverage since last reading by toner bottle page count
         prev_bottle_start <- bottle_start
         pages_delta <- df[j, pages_current[[i]]] + df[j, pages_prev[[i]]] - df[j-1, pages_current[[i]]]
@@ -330,9 +392,10 @@ estimate_bottle_coverage <- function(df) {
           min_observed_prev <- NA
         }
       }
+      
       if(!identical(NA, prev_bottle_start)) {
         bottle_coverage <- bottle_start - prev_bottle_start
-        df[j,name] <- bottle_coverage
+        df[j, coverage_prev_bottle[[i]]] <- bottle_coverage
       }
       if(!identical(NA, bottle_start)) {
         current_coverage <- df[j, coverage[[i]]] - bottle_start
@@ -340,6 +403,30 @@ estimate_bottle_coverage <- function(df) {
       }
       if(!identical(NA, min_observed_prev)) {
          df[j, min_observed_toner_prev_bottle[[i]]] <- min_observed_prev
+      }
+      
+      # Calculate toner efficiency where we have a clean toner and coverage deltas for a given bottle
+      if(toner_efficiency_start_index && (isTRUE(df[j, toner_replaced[[i]]]) || isTRUE(df[j, toner[[i]]] == 0))) {
+        # print(df[j,"Serial"])
+        # print(j)
+        # print(toner_efficiency_start_index)
+        # print(df[j, toner_replaced[[i]]])
+        # print(isTRUE(df[j, toner[[i]]] == 0))
+        # print("")
+        
+        tracked_delta_toner <- (df[toner_efficiency_start_index, toner[[i]]] - df[j-1, toner[[i]]])
+        tracked_delta_coverage <- (df[j-1, coverage[[i]]] - df[toner_efficiency_start_index, coverage[[i]]])
+        
+        # Only calcualte a value when error due to toner precision is reasonable
+        if(is.numeric(tracked_delta_toner) && isTRUE(tracked_delta_toner > 20)) {
+          df[j-1, toner_per_coverage[[i]]] <-  tracked_delta_toner / tracked_delta_coverage
+        }
+
+        toner_efficiency_start_index <- FALSE
+      }
+      # Only resume tracking when we have a reading without a toner replacement
+      if(df[j-1, toner_replaced[[i]]] %>% isTRUE && df[j, toner_replaced[[i]]] %>% isFALSE) {
+        toner_efficiency_start_index <- j-1
       }
     }
   }
@@ -357,13 +444,16 @@ process_serial_df <- function(df) {
 }
 
 
-serial_dfs <- split(predictors, predictors$Serial)
+serial_dfs <- split(predictors_orig, predictors_orig$Serial)
 serial_dfs <- plapply(serial_dfs, process_serial_df, parallel=T)
 predictors <- bindRowsForgiving(serial_dfs)
 
 
 #tonerForSerial(serials[[5]])
-tonerForSerial("E163M450041")
+#tonerForSerial("E163M450041")
+#tonerForSerial("E163M750100")
+tonerForSerial("E163M850072", 2)
+tonerForSerial("E163MA50192", 2)
 
 traces <- list()
 for(i in 1:length(colors)) {
@@ -374,11 +464,40 @@ for(i in 1:length(colors)) {
     #c(toner[[i]], coverage_bottle[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], "PMCount.X7956_142_Estimated.Remain.Days.Waste.Toner.Bottle.SP7.956.142.Read.Only", colors[[i]])
     #c(toner_per_coverage[[i]], pages_total, colors[[i]])
-    c(toner_per_coverage[[i]], "Serial", colors[[i]])
+    #c(toner_per_coverage[[i]], "Serial", colors[[i]])
+    #c(toner_per_coverage[[i]], "RetrievedDateTime", colors[[i]])
+    c(toner_per_coverage[[i]], developer_rotation[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], developer_pages[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], developer_remaining[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], developer_replacement_count[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], developer_unit_remaining[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], vtref[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], td_sens[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], vtref[[i]], developer_rotation[[i]])
   ))
 }
 #tonerScatterForSerials(serials, traces)
-tonerScatterForSerials(head(serials, 50) %>% tail(200), traces)
+tonerScatterForSerials(head(serials, 250000) %>% tail(10000), traces)
+
+# Predict high toner usage
+
+
+ps <- predictors[!is.na(predictors$Toner.Per.Coverage.Y),]
+ps_eligible <- filterIneligibleFields(ps, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=replace_nas)
+
+used_labels <- c("Toner.Usage.High.Y", "Toner.Usage.High.M")
+responses <- ps_eligible$Toner.Per.Coverage.Y %>% as.data.frame
+responses[,1] <- ps_eligible$Toner.Per.Coverage.Y > 0.002
+responses[,2]<- ps_eligible$Toner.Per.Coverage.M > 0.002
+names(responses) <- used_labels
+# Train models in parallel as despite native threading support there are substantial serial sections
+models <- trainModelSet(used_labels, ps_eligible, responses, ntree=ntree, parallel=F)
+
+for(label in keys(models)) {
+  cat("\n\n")
+  print(paste("Importance for", label))
+  showModelFeatureImportance(models[[label]], n=30)
+}
 
 ################################################################################
 # Toner reporting capabilities

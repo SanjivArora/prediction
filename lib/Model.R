@@ -85,7 +85,7 @@ trainModelSet <- function(labels, data, responses, ntree=500, parallel=TRUE, nco
   models <- plapply(
     labels, 
     function(l) {
-      trainLabel(l, train_data, train_responses[,l,drop=FALSE], ntree=ntree, n_threads=n_threads)
+      trainLabel(l, data, responses[,l,drop=FALSE], ntree=ntree, n_threads=n_threads)
     },
     parallel=parallel,
     ncores=ncores
