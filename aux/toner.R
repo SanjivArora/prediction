@@ -10,7 +10,7 @@ require(itertools)
 require(forcats)
 require(magrittr)
 require(plotly)
-require(qualV)
+require(PTXQC)
 
 
 #sample_rate <- 1 #0.2
@@ -127,7 +127,7 @@ grep('.*Dev.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% pr
 grep('.*Vtref.Display.Setting.Current.Value.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*TD.Sens.Vt.Disp.Current.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*Hum*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Date.Dev.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*PTR.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
 #predictors[,p1] %>% View
 serials <- predictors$Serial
@@ -172,66 +172,66 @@ pages_prev <- c(
 )
 
 developer_rotation <- c(
-  "PMCount.X7942_4_PM.Counter.Rotation.Developer.K.SP7.942.004.Read.Only",        
-  "PMCount.X7942_27_PM.Counter.Rotation.Developer.C.SP7.942.027.Read.Only",              
+  "PMCount.X7942_4_PM.Counter.Rotation.Developer.K.SP7.942.004.Read.Only", 
+  "PMCount.X7942_73_PM.Counter.Rotation.Developer.Y.SP7.942.073.Read.Only",
   "PMCount.X7942_50_PM.Counter.Rotation.Developer.M.SP7.942.050.Read.Only",              
-  "PMCount.X7942_73_PM.Counter.Rotation.Developer.Y.SP7.942.073.Read.Only"
+  "PMCount.X7942_27_PM.Counter.Rotation.Developer.C.SP7.942.027.Read.Only"              
 )
 
 developer_usage_rate <- c(
-  "PMCount.X7960_4_Estimated.Usage.Rate.Developer.K.SP7.960.004.Read.Only",           
-  "PMCount.X7960_27_Estimated.Usage.Rate.Developer.C.SP7.960.027.Read.Only",             
+  "PMCount.X7960_4_Estimated.Usage.Rate.Developer.K.SP7.960.004.Read.Only",    
+  "PMCount.X7960_73_Estimated.Usage.Rate.Developer.Y.SP7.960.073.Read.Only",
   "PMCount.X7960_50_Estimated.Usage.Rate.Developer.M.SP7.960.050.Read.Only",             
-  "PMCount.X7960_73_Estimated.Usage.Rate.Developer.Y.SP7.960.073.Read.Only"
+  "PMCount.X7960_27_Estimated.Usage.Rate.Developer.C.SP7.960.027.Read.Only"
 )
 
 developer_pages <- c(
-  "PMCount.X7954_4_PM.Counter.Page.Developer.K.SP7.954.004.Read.Only",                   
-  "PMCount.X7954_27_PM.Counter.Page.Developer.C.SP7.954.027.Read.Only",                  
+  "PMCount.X7954_4_PM.Counter.Page.Developer.K.SP7.954.004.Read.Only",
+  "PMCount.X7954_73_PM.Counter.Page.Developer.Y.SP7.954.073.Read.Only",
   "PMCount.X7954_50_PM.Counter.Page.Developer.M.SP7.954.050.Read.Only",                  
-  "PMCount.X7954_73_PM.Counter.Page.Developer.Y.SP7.954.073.Read.Only"
+  "PMCount.X7954_27_PM.Counter.Page.Developer.C.SP7.954.027.Read.Only"                  
 )
 
 developer_remaining <- c(
-  "PMCount.X7956_4_Estimated.Remain.Days.Developer.K.SP7.956.004.Read.Only",             
-  "PMCount.X7956_27_Estimated.Remain.Days.Developer.C.SP7.956.027.Read.Only",            
+  "PMCount.X7956_4_Estimated.Remain.Days.Developer.K.SP7.956.004.Read.Only",
+  "PMCount.X7956_73_Estimated.Remain.Days.Developer.Y.SP7.956.073.Read.Only",
   "PMCount.X7956_50_Estimated.Remain.Days.Developer.M.SP7.956.050.Read.Only",            
-  "PMCount.X7956_73_Estimated.Remain.Days.Developer.Y.SP7.956.073.Read.Only"
+  "PMCount.X7956_27_Estimated.Remain.Days.Developer.C.SP7.956.027.Read.Only"            
 )
 
 developer_replacement_count <- c(
-  "PMCount.X7853_4_Replacement.Cnt.Developer.K.SP7.853.004.Read.Only",                   
-  "PMCount.X7853_27_Replacement.Cnt.Developer.C.SP7.853.027.Read.Only",                  
+  "PMCount.X7853_4_Replacement.Cnt.Developer.K.SP7.853.004.Read.Only",
+  "PMCount.X7853_73_Replacement.Cnt.Developer.Y.SP7.853.073.Read.Only",
   "PMCount.X7853_50_Replacement.Cnt.Developer.M.SP7.853.050.Read.Only",                  
-  "PMCount.X7853_73_Replacement.Cnt.Developer.Y.SP7.853.073.Read.Only"
+  "PMCount.X7853_27_Replacement.Cnt.Developer.C.SP7.853.027.Read.Only"                  
 )
 
 developer_unit_remaining <- c(
-  "PMCount.X7956_3_Estimated.Remain.Days.Dev.Unit.K.SP7.956.003.Read.Only",          
-  "PMCount.X7956_26_Estimated.Remain.Days.Dev.Unit.C.SP7.956.026.Read.Only",         
+  "PMCount.X7956_3_Estimated.Remain.Days.Dev.Unit.K.SP7.956.003.Read.Only",
+  "PMCount.X7956_72_Estimated.Remain.Days.Dev.Unit.Y.SP7.956.072.Read.Only",
   "PMCount.X7956_49_Estimated.Remain.Days.Dev.Unit.M.SP7.956.049.Read.Only",         
-  "PMCount.X7956_72_Estimated.Remain.Days.Dev.Unit.Y.SP7.956.072.Read.Only"
+  "PMCount.X7956_26_Estimated.Remain.Days.Dev.Unit.C.SP7.956.026.Read.Only"         
 )
 
 vtref <- c(
   "PMCount.X3230_1_Vtref.Display.Setting.Current.Value.K.SP3.230.001.Read.Only",
-  "PMCount.X3230_2_Vtref.Display.Setting.Current.Value.C.SP3.230.002.Read.Only",
+  "PMCount.X3230_4_Vtref.Display.Setting.Current.Value.Y.SP3.230.004.Read.Only",
   "PMCount.X3230_3_Vtref.Display.Setting.Current.Value.M.SP3.230.003.Read.Only",
-  "PMCount.X3230_4_Vtref.Display.Setting.Current.Value.Y.SP3.230.004.Read.Only"
+  "PMCount.X3230_2_Vtref.Display.Setting.Current.Value.C.SP3.230.002.Read.Only"
 )
 
 td_sens <- c(
   "PMCount.X3210_1_TD.Sens.Vt.Disp.Current.K.SP3.210.001.Read.Only",
-  "PMCount.X3210_2_TD.Sens.Vt.Disp.Current.C.SP3.210.002.Read.Only",
+  "PMCount.X3210_4_TD.Sens.Vt.Disp.Current.Y.SP3.210.004.Read.Only",
   "PMCount.X3210_3_TD.Sens.Vt.Disp.Current.M.SP3.210.003.Read.Only",
-  "PMCount.X3210_4_TD.Sens.Vt.Disp.Current.Y.SP3.210.004.Read.Only"
+  "PMCount.X3210_2_TD.Sens.Vt.Disp.Current.C.SP3.210.002.Read.Only"
 )
 
 developer_replacement_date <- c(
   "PMCount.X7950_3_Unit.Replacement.Date.Dev.Unit.K.SP7.950.003.Read.Only",
-  "PMCount.X7950_26_Unit.Replacement.Date.Dev.Unit.C.SP7.950.026.Read.Only",
+  "PMCount.X7950_72_Unit.Replacement.Date.Dev.Unit.Y.SP7.950.072.Read.Only",
   "PMCount.X7950_49_Unit.Replacement.Date.Dev.Unit.M.SP7.950.049.Read.Only",
-  "PMCount.X7950_72_Unit.Replacement.Date.Dev.Unit.Y.SP7.950.072.Read.Only"
+  "PMCount.X7950_26_Unit.Replacement.Date.Dev.Unit.C.SP7.950.026.Read.Only"
 )
 
 # Commercial
@@ -306,20 +306,28 @@ makePlotForSerial <- function(serial, traces, yaxis='y1', mode="lines+markers", 
 
 tonerForSerial <- function(serial, color=1) {
   p <- plot_ly(width=1400, height=1000)
-  p <- makePlotForSerial(serial, coverage_prev_bottle[[i]], plot=p)
   p %<>% layout(
     title=paste("Toner:", serial),
     #legend = list(x = 100, y = 50),
     #yaxis=list(title="Pages"),
-    yaxis2=list(title="Toner%", overlaying="y", side="right", range=c(0,100)),
-    yaxis3=list(overlaying="y", side="right"),
-    yaxis4=list(overlaying="y", side="right"),
-    yaxis5=list(overlaying="y", side="right")
+    #yaxis2=list(title="Toner%", overlaying="y", side="right", range=c(0,100)),
+    yaxis=list(rangemod='nonnegative'),
+    yaxis2=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis3=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis4=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis5=list(overlaying="y", side="right", rangemode='nonnegative')
   )
-  p <- makePlotForSerial(serial, toner[[color]], yaxis="y2", plot=p)
-  p <- makePlotForSerial(serial, coverage_current[[color]], yaxis="y3", plot=p)
-  p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y4", plot=p)
+  #p <- makePlotForSerial(serial, toner[[color]], yaxis="y2", plot=p)
+  #p <- makePlotForSerial(serial, coverage_current[[color]], yaxis="y3", plot=p)
+  #p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y4", plot=p)
   #p <- makePlotForSerial(serial, toner_replaced[[color]], yaxis="y5", plot=p)
+  p <- makePlotForSerial(serial, coverage[[color]], yaxis="y", plot=p)
+  p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y2", plot=p)
+  #p <- makePlotForSerial(serial, coverage_prev_bottle[[i]], plot=p)
+  p <- makePlotForSerial(serial, pages_prev[[color]], yaxis="y3", plot=p)
+  p <- makePlotForSerial(serial, developer_replacement_date[[color]], yaxis="y4", plot=p)
+  p <- makePlotForSerial(serial, toner[[color]], yaxis="y5", plot=p)
+  #p <- makePlotForSerial(serial, coverage_prev_bottle[[color]], yaxis="y3", plot=p)
   print(p)
 }
 
@@ -327,16 +335,16 @@ LCSn <- function(seqs) {
   Reduce(LCS, seqs)
 }
 
-
-tonerScatterHistForSerials <- function(serials, traces=list(), colors=c("black", "gold1", "magenta2", "royalblue1")) {
-  data <- predictors[predictors$Serial %in% serials,]
+tonerScatterHistForSerials <- function(serials, traces=list(), data=NA, create_labels=FALSE, colors=c("black", "gold1", "magenta2", "royalblue1")) {
+  if(identical(data, NA)) data <- predictors
+  data <- data[data$Serial %in% serials,]
   xs <- list()
   ys <- list()
   xlabels <- list()
   ylabels <- list()
   xhist <- plot_ly()
   yhist <- plot_ly()
-  p <- plot_ly()
+  p <- plot_ly(width=1400, height=1000)
   for(i in 1:length(traces)) {
     t <- traces[[i]]
     print(t)
@@ -348,7 +356,18 @@ tonerScatterHistForSerials <- function(serials, traces=list(), colors=c("black",
     xhist %<>% add_trace(x=x, type='histogram', name=paste("x", "hist", name), color=I(colors[[i]]))
     yhist %<>% add_trace(y=y, type='histogram', name=paste("y", "hist", name), color=I(colors[[i]]))
     # Axis labels are the longest common subsequence set of names used
-    p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode='markers', color=I(colors[[i]]))
+    if(length(t) > 3) hover_fields <- t[[4]] else hover_fields <- c('Serial')
+      if(create_labels) {
+      hover_labels <- lapply(1:nrow(data), function(j) {
+        #print(j)
+        paste(hover_fields, data[j, hover_fields], collapse='\n', sep=": ")
+      })
+      } else {
+      hover_labels <- ""
+    }
+    #print(hover_labels)
+    p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode='markers', color=I(colors[[i]]), text=~hover_labels)
+    #p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode='markers', color=data$Serial, text=~hover_labels)
   }
   xlabel <- LCSn(xlabels)
   ylabel <- LCSn(ylabels)
@@ -492,12 +511,16 @@ serial_dfs <- split(predictors_orig, predictors_orig$Serial)
 serial_dfs <- plapply(serial_dfs, process_serial_df, parallel=T)
 predictors <- bindRowsForgiving(serial_dfs)
 
+# Examine efficiency
+eff <- predictors[,toner_per_coverage]
+hits <- apply(eff, 1, function(r) !(r %>% is.na %>% all))
+pred_eff <- predictors[hits,]
 
 #tonerForSerial(serials[[5]])
 #tonerForSerial("E163M450041")
 #tonerForSerial("E163M750100")
-tonerForSerial("E163M850072", 2)
-tonerForSerial("E163MA50192", 2)
+#tonerForSerial("E163M850072", 2)
+#tonerForSerial("E163MA50192", 2)
 
 traces <- list()
 for(i in 1:length(colors)) {
@@ -517,19 +540,41 @@ for(i in 1:length(colors)) {
     #c(toner_per_coverage[[i]], developer_unit_remaining[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], vtref[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], td_sens[[i]], colors[[i]])
-    #c(toner_per_coverage[[i]], vtref[[i]], developer_rotation[[i]])
     #c(toner_per_coverage[[i]], "PMCount.X7953_16_Operation.Env.Log.PCU.Bk.25.Temp.30.80.Hum.100.SP7.953.016.Read.Only", colors[[i]])
     #c(toner_per_coverage[[i]], "PMCount.X7953_8_Operation.Env.Log.PCU.Bk.5.Temp.15.80.Hum.100.SP7.953.008.Read.Only", colors[[i]])
     #c(toner_per_coverage[[i]], developer_replacement_date[[i]], colors[[i]])
-    c(developer_rotation[[i]], developer_replacement_date[[i]], colors[[i]])
-  ))
+    #c(toner_per_coverage[[i]], "PMCount.X7942_109_PM.Counter.Display.Distance.PTR.Unit.SP7.942.109.Read.Only", colors[[i]])
+    #c(toner_per_coverage[[i]], "PMCount.X7956_109_Estimated.Remain.Days.PTR.Unit.SP7.956.109.Read.Only", colors[[i]])
+    #c(toner_per_coverage[[i]], "PMCount.X7960_109_Estimated.Usage.Rate.PTR.Unit.SP7.960.109.Read.Only", colors[[i]])
+    c(toner_per_coverage[[i]], "PMCount.X7621_109_PM.Counter.Display.Pages.PTR.Unit.SP7.621.109.Read.Only", colors[[i]])
+    )
+  )
 }
+
+tonerScatterHistForSerials(pred_eff$Serial, traces, data=pred_eff)
+
 #tonerScatterForSerials(serials, traces)
 #tonerScatterForSerials(head(serials, 250000) %>% tail(10000), traces)
-tonerScatterHistForSerials(head(serials, 250000) %>% tail(10000), traces)
-# Predict high toner usage
+high_y <- predictors[(pred_eff[,toner_per_coverage[[2]]]>0.005) %>% which,]
+high_y_period <- high_y %>% filter(high_y[,developer_replacement_date[[2]]] > as.Date('2015-11-01') & high_y[,developer_replacement_date[[2]]] < as.Date('2015-12-31'))
+#tonerScatterHistForSerials(head(serials, 1000000) %>% tail(10000), traces, data=high_y)
+tonerScatterHistForSerials(high_y_period$Serial, list(traces[[2]]), data=pred_eff)
+
+high_y_period$Serial %>% table
+high_y_period$RetrievedDate %>% hist(breaks=10)
 
 
+tonerForSerial("E175M950201", 2)
+tonerForSerial("E175M950223", 2)
+tonerForSerial("E175M950227", 2)
+tonerForSerial("E175M950047", 2)
+tonerForSerial("E175M950072", 2)
+tonerForSerial("E175M950335", 2)
+tonerForSerial("E175M950078", 2)
+ 
+
+
+# Predict high toner use per coverage
 ps <- predictors[!is.na(predictors$Toner.Per.Coverage.Y),]
 ps_eligible <- filterIneligibleFields(ps, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=replace_nas)
 
@@ -622,8 +667,8 @@ for (i in 1:length(dfs)) {
   capability_set %<>% toString
   capability_sets[[capability_set]] <- getWithDefault(capability_sets, capability_set, list()) %>% append(name) 
   capability_set_counts[[capability_set]] <- getWithDefault(capability_set_counts, capability_set, 0) + nrow(df)
-  
 }
+
 print(model_capabilities)
 print(capability_sets)
 print(capability_set_counts)
