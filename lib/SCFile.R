@@ -51,7 +51,7 @@ source('lib/DataFile.R')
 # d <- SCFile(path="RNZ_E16_SC_20180714.csv")
 # x <- d$getDataFrame()
   
-codesFor <- function(f, days=NA, end_date=NA, parallel=TRUE) {
+codesFor <- function(f=function(file) TRUE, days=NA, end_date=NA, parallel=TRUE) {
   datafiles <- instancesForBucket(cls=SCFile, end_date=end_date, days=days, sources=c('SC'))
   datafiles <- filterBy(datafiles, f)
   if(length(datafiles)==0) {
@@ -67,8 +67,8 @@ codesFor <- function(f, days=NA, end_date=NA, parallel=TRUE) {
 codesForRegionsAndModels <- function(regions=NA, models=NA, days=NA, end_date=NA, source="SC", parallel=TRUE) {
   res <- codesFor(function(f) {
     res <- f$source==source
-    if(!identical(NA, regions)) res %<>% f$region %in% regions
-    if(!identical(NA, models)) res %<>% f$model %in% models
+    if(!identical(NA, regions)) res <- res & f$region %in% regions
+    if(!identical(NA, models)) res <- res & f$model %in% models
     return(res)
   }, days=days, end_date=end_date, parallel=parallel)
   return(res)

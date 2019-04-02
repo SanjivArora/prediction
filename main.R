@@ -29,9 +29,9 @@ selected_features <- FALSE
 # For generating portable data sets, breaks modeling
 #replace_nas=FALSE
 
-device_models <- device_groups[["trial_prod"]]
+#device_models <- device_groups[["trial_prod"]]
 #device_models <- device_groups[["trial_commercial"]]
-#device_models <- device_groups[["e_series_commercial"]]
+device_models <- device_groups[["e_series_commercial"]]
 
 #device_models <- c("E18")
 
@@ -51,6 +51,7 @@ if(selected_features) {
 
 service_codes <- readCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
 serial_to_service_codes <- makeSerialToCodes(service_codes)
+
 
 jams <- readJamCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
 serial_to_jams <- makeSerialToCodes(jams)
@@ -208,3 +209,16 @@ top_features <- topModelsFeatures(models, frac=0.5)
 
 # Overall stats for service codes
 #service_codes <- readCodes(NA, NA, target_codes, days=data_days, end_date=end_date, parallel=parallel)
+
+# Service code frequency
+#service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > as.Date('2019-02-01') & service_codes$Serial %in% z & service_codes$OCCUR_DETAIL=='pcl',]$OCCUR_DATE %>% hist(breaks=100)
+#service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table(exclude=0) %>% View
+
+# 899 cause breakdown
+# service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table() %>% as.data.frame -> x
+# x$OCCUR_DETAIL %<>% as.character
+# others <- x$Freq < 0.03 * sum(x$Freq)
+# others_sum <- x[others,]$Freq %>% sum
+# x <- x[!others,]
+# x[length(x)+1,] <- c('other', 899, others_sum)
+# plot_ly(values=x$Freq, labels=x$OCCUR_DETAIL, type='pie')

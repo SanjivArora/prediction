@@ -32,7 +32,7 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("C08")
+device_models <- c("E17")
 #device_models <- c("V24")
 
 # For toner analysis:
@@ -317,11 +317,12 @@ toner_per_coverage <- c(
   "Toner.Per.Coverage.C"
 )
 
-makePlotForSerial <- function(serial, traces, yaxis='y1', mode="lines+markers", type="scatter", plot=NA) {
+makePlotForSerial <- function(serial, traces, yaxis='y1', mode="lines+markers", type="scatter", plot=NA, dataset=NA) {
   if(identical(plot, NA)) {
     plot <- plot_ly()
   }
-  data <- predictors[predictors$Serial==serial,]
+  if(identical(dataset, NA)) dataset <- predictors
+  data <- dataset[dataset$Serial==serial,]
   # Prod
   #xdata <- data$Count.X8381_1_Total.Total.PrtPGS.SP8.381
   # Commercial
@@ -333,7 +334,8 @@ makePlotForSerial <- function(serial, traces, yaxis='y1', mode="lines+markers", 
   return(plot)
 }
 
-tonerForSerial <- function(serial, color=1) {
+tonerForSerial <- function(serial, color=1, dataset=NA) {
+  if(identical(dataset, NA)) dataset <- predictors
   p <- plot_ly(width=1400, height=1000)
   p %<>% layout(
     title=paste("Toner:", serial),
@@ -346,17 +348,17 @@ tonerForSerial <- function(serial, color=1) {
     yaxis4=list(overlaying="y", side="right", rangemode='nonnegative'),
     yaxis5=list(overlaying="y", side="right", rangemode='nonnegative')
   )
-  #p <- makePlotForSerial(serial, toner[[color]], yaxis="y2", plot=p)
-  #p <- makePlotForSerial(serial, coverage_current[[color]], yaxis="y3", plot=p)
-  #p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y4", plot=p)
-  #p <- makePlotForSerial(serial, toner_replaced[[color]], yaxis="y5", plot=p)
-  p <- makePlotForSerial(serial, coverage[[color]], yaxis="y", plot=p)
-  p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y2", plot=p)
-  #p <- makePlotForSerial(serial, coverage_prev_bottle[[i]], plot=p)
-  p <- makePlotForSerial(serial, pages_prev[[color]], yaxis="y3", plot=p)
-  #p <- makePlotForSerial(serial, developer_replacement_date[[color]], yaxis="y4", plot=p)
-  p <- makePlotForSerial(serial, toner[[color]], yaxis="y5", plot=p)
-  #p <- makePlotForSerial(serial, coverage_prev_bottle[[color]], yaxis="y3", plot=p)
+  #p <- makePlotForSerial(serial, toner[[color]], yaxis="y2", plot=p, dataset=dataset)
+  #p <- makePlotForSerial(serial, coverage_current[[color]], yaxis="y3", plot=p, dataset=dataset)
+  #p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y4", plot=p, dataset=dataset)
+  #p <- makePlotForSerial(serial, toner_replaced[[color]], yaxis="y5", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, coverage[[color]], yaxis="y", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y2", plot=p, dataset=dataset)
+  #p <- makePlotForSerial(serial, coverage_prev_bottle[[i]], plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, pages_prev[[color]], yaxis="y3", plot=p, dataset=dataset)
+  #p <- makePlotForSerial(serial, developer_replacement_date[[color]], yaxis="y4", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, toner[[color]], yaxis="y5", plot=p, dataset=dataset)
+  #p <- makePlotForSerial(serial, coverage_prev_bottle[[color]], yaxis="y3", plot=p, dataset=dataset)
   print(p)
 }
 
@@ -364,9 +366,10 @@ LCSn <- function(seqs) {
   Reduce(LCS, seqs)
 }
 
-tonerScatterHistForSerials <- function(serials, traces=list(), data=NA, create_labels=FALSE, colors=color_scheme) {
-  if(identical(data, NA)) data <- predictors
-  data <- data[data$Serial %in% serials,]
+tonerScatterHistForSerials <- function(serials, traces=list(), data=NA, create_labels=FALSE, colors=color_scheme, datasets=NA, mode='markers') {
+  if(identical(datasets, NA)) datasets <- list(predictors)
+  datasets %<>% plapply(function(df) df[df$Serial %in% serials,], parallel=F)
+  data <- bindRowsForgiving(datasets)
   xs <- list()
   ys <- list()
   xlabels <- list()
@@ -384,20 +387,32 @@ tonerScatterHistForSerials <- function(serials, traces=list(), data=NA, create_l
     name <- t[[3]]
     xhist %<>% add_trace(x=x, type='histogram', name=paste("x", "hist", name), color=I(colors[[i]]))
     yhist %<>% add_trace(y=y, type='histogram', name=paste("y", "hist", name), color=I(colors[[i]]))
-    # Axis labels are the longest common subsequence set of names used
-    if(length(t) > 3) hover_fields <- t[[4]] else hover_fields <- c('Serial')
-      if(create_labels) {
-      hover_labels <- lapply(1:nrow(data), function(j) {
-        #print(j)
-        paste(hover_fields, data[j, hover_fields], collapse='\n', sep=": ")
-      })
+    for(df in datasets) {
+      if(length(t) > 3) hover_fields <- t[[4]] else hover_fields <- c('Serial')
+        if(create_labels) {
+        hover_labels <- lapply(1:nrow(df), function(j) {
+          #print(j)
+          paste(hover_fields, df[j, hover_fields], collapse='\n', sep=": ")
+        })
+        } else {
+        hover_labels <- ""
+      }
+      #print(hover_labels)
+      xy <- df[,t[1:2]]
+      xy <- xy[complete.cases(xy),]
+      x <- xy[,1]
+      y <- xy[,2]
+      if(length(colors) == 1) {
+        color=NA
       } else {
-      hover_labels <- ""
+        color=I(colors[[i]])
+      }
+      p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, text=~hover_labels, opacity=0.7)
+      #p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, color=color, text=~hover_labels, opacity=0.7)
+      #p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, color=data$Serial, text=~hover_labels)
     }
-    #print(hover_labels)
-    p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode='markers', color=I(colors[[i]]), text=~hover_labels)
-    #p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode='markers', color=data$Serial, text=~hover_labels)
   }
+  # Axis labels are the longest common subsequence set of names used
   xlabel <- LCSn(xlabels)
   ylabel <- LCSn(ylabels)
   p %<>% layout(xaxis=list(title=xlabel), yaxis=list(title=ylabel))
@@ -585,9 +600,9 @@ for(i in 1:length(colors)) {
     #c(min_observed_toner_prev_bottle[[i]], coverage_prev_bottle[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], "PMCount.X7956_142_Estimated.Remain.Days.Waste.Toner.Bottle.SP7.956.142.Read.Only", colors[[i]])
     #c(toner_per_coverage[[i]], pages_total, colors[[i]])
-    c(toner_per_coverage[[i]], "Serial", colors[[i]])
+    #c(toner_per_coverage[[i]], "Serial", colors[[i]])
     #c(toner_per_coverage[[i]], "RetrievedDateTime", colors[[i]])
-    #c(toner_per_coverage[[i]], developer_rotation[[i]], colors[[i]])
+    c(toner_per_coverage[[i]], developer_rotation[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_pages[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_remaining[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_replacement_count[[i]], colors[[i]])
@@ -605,9 +620,12 @@ for(i in 1:length(colors)) {
   )
 }
 
-tonerScatterHistForSerials(pred_eff$Serial, traces, data=pred_eff)
+pred_eff_by_serial <- split(pred_eff, pred_eff$Serial)
 
-tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(25), traces, data=pred_eff)
+#tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=list(pred_eff))
+tonerScatterHistForSerials(pred_eff$Serial, list(traces[[1]]), datasets=pred_eff_by_serial, mode='lines')
+
+tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(25), datasets=pred_eff_by_serial, mode='lines')
 
 
 print(paste("Summary of toner per coverage for:", paste(device_models)))
