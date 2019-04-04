@@ -11,6 +11,7 @@ require(forcats)
 require(magrittr)
 require(plotly)
 require(PTXQC)
+require(tibble)
 
 
 #sample_rate <- 1 #0.2
@@ -130,6 +131,7 @@ grep('.*TD.Sens.Vt.Disp.Current.*', predictors %>% names()) -> p1; names(predict
 grep('.*Hum*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*PTR.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*Drive.Distance.Counter.*Developer', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*PCU.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
 
 #predictors[,p1] %>% View
@@ -235,6 +237,14 @@ developer_replacement_date <- c(
   "PMCount.X7950_72_Unit.Replacement.Date.Dev.Unit.Y.SP7.950.072.Read.Only",
   "PMCount.X7950_49_Unit.Replacement.Date.Dev.Unit.M.SP7.950.049.Read.Only",
   "PMCount.X7950_26_Unit.Replacement.Date.Dev.Unit.C.SP7.950.026.Read.Only"
+)
+
+pcu_distance <- c(
+  "PMCount.X7944_2_PM.Counter.Display.Distance.PCU.K.SP7.944.002.Read.Only",
+  "PMCount.X7944_71_PM.Counter.Display.Distance.PCU.Y.SP7.944.071.Read.Only",
+  "PMCount.X7944_48_PM.Counter.Display.Distance.PCU.M.SP7.944.048.Read.Only",
+  "PMCount.X7944_25_PM.Counter.Display.Distance.PCU.C.SP7.944.025.Read.Only"                 
+                   
 )
 
 waste_toner_replacement_date <- "PMCount.X7950_142_Unit.Replacement.Date.Waste.Toner.Bottle.SP7.950.142.Read.Only"
@@ -369,12 +379,21 @@ LCSn <- function(seqs) {
   Reduce(LCS, seqs)
 }
 
-tonerScatterHistForSerials <- function(serials, traces=list(), data=NA, create_labels=FALSE, colors=color_scheme, datasets=NA, mode='markers', log_x=FALSE, log_y=FALSE) {
+tonerScatterHistForSerials <- function(
+    serials,
+    traces=list(),
+    data=NA,
+    create_labels=FALSE,
+    colors=color_scheme,
+    datasets=NA,
+    mode='markers',
+    log_x=FALSE,
+    log_y=FALSE,
+    force_cmyk=FALSE
+  ) {
   if(identical(datasets, NA)) datasets <- list(predictors)
   datasets %<>% plapply(function(df) df[df$Serial %in% serials,], parallel=F)
   data <- bindRowsForgiving(datasets)
-  xs <- list()
-  ys <- list()
   xlabels <- list()
   ylabels <- list()
   xhist <- plot_ly()
@@ -383,15 +402,9 @@ tonerScatterHistForSerials <- function(serials, traces=list(), data=NA, create_l
   for(i in 1:length(traces)) {
     t <- traces[[i]]
     print(t)
-    x <- data[,t[[1]]]
-    y <- data[,t[[2]]]
-    if(log_x) x %<>% log
-    if(log_y) y %<>% log
-    xlabels %<>% append(t[[1]])
-    ylabels %<>% append(t[[2]])
     name <- t[[3]]
-    xhist %<>% add_trace(x=x, type='histogram', name=paste("x", "hist", name), color=I(colors[[i]]))
-    yhist %<>% add_trace(y=y, type='histogram', name=paste("y", "hist", name), color=I(colors[[i]]))
+    x_all <- list()
+    y_all <- list()
     for(df in datasets) {
       if(length(t) > 3) hover_fields <- t[[4]] else hover_fields <- c('Serial')
         if(create_labels) {
@@ -406,18 +419,23 @@ tonerScatterHistForSerials <- function(serials, traces=list(), data=NA, create_l
       xy <- df[,t[1:2]]
       xy <- xy[complete.cases(xy),]
       x <- xy[,1]
+      y <- xy[,2]
+      x_all %<>% append(x)
+      y_all %<>% append(y)
       if(log_x) x %<>% log
       if(log_y) y %<>% log
-      y <- xy[,2]
-      if(length(colors) == 1) {
-        color=NA
+      # Use arbitrary colors if we have multiple datasets, otherwise use CMYK by trace
+      if(length(datasets) != 1 && !force_cmyk) {
+        p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, text=~hover_labels, opacity=0.7)
       } else {
         color=I(colors[[i]])
+        p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, color=color, text=~hover_labels, opacity=0.7)
       }
-      p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, text=~hover_labels, opacity=0.7)
-      #p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, color=color, text=~hover_labels, opacity=0.7)
-      #p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, color=data$Serial, text=~hover_labels)
     }
+    xlabels %<>% append(t[[1]])
+    ylabels %<>% append(t[[2]])
+    xhist %<>% add_trace(x=concat(x_all), type='histogram', name=paste("x", "hist", name), color=I(colors[[i]]))
+    yhist %<>% add_trace(y=concat(y_all), type='histogram', name=paste("y", "hist", name), color=I(colors[[i]]))
   }
   # Axis labels are the longest common subsequence set of names used
   xlabel <- LCSn(xlabels)
@@ -546,8 +564,9 @@ estimate_bottle_coverage <- function(df) {
       } else {
         stop_tracking_at <- 5
       }
-      # Calculate toner efficiency where we have a clean toner and coverage deltas for a given bottle
-      if(toner_efficiency_start_index && (isTRUE(df[j, toner_replaced[[i]]]) || isTRUE(df[j, toner[[i]]] <= stop_tracking_at))) {
+      # Calculate toner efficiency where we have a clean toner and coverage deltas for a given bottle + developer unit combination
+      developer_replaced <- !identical(df[j, developer_replacement_date[[i]]], df[j-1, developer_replacement_date[[i]]])
+      if(toner_efficiency_start_index && (isTRUE(df[j, toner_replaced[[i]]]) || isTRUE(df[j, toner[[i]]] <= stop_tracking_at) || developer_replaced)) {
         # print(df[j,"Serial"])
         # print(j)
         # print(toner_efficiency_start_index)
@@ -588,22 +607,30 @@ serial_dfs <- split(predictors_orig, predictors_orig$Serial)
 serial_dfs <- plapply(serial_dfs, process_serial_df, parallel=T)
 predictors <- bindRowsForgiving(serial_dfs)
 
+# Fine readings for current developer unit
+
 # Examine efficiency
-eff <- predictors[,toner_per_coverage]
-hits <- apply(eff, 1, function(r) !(r %>% is.na %>% all))
-pred_eff <- predictors[hits,]
+get_eff <- function(preds) {
+  eff <- preds[, toner_per_coverage]
+  hits <- apply(eff, 1, function(r) !(r %>% is.na %>% all))
+  result <- preds[hits,]
+  return(result)
+}
+pred_eff <- predictors %>% get_eff
 
 # Find toner per coverage values for current developer units
-pred_eff_current <- pred_eff
+pred_current <- predictors
 for(i in 1:length(colors)) {
   field <- developer_replacement_date[[i]]
-  p <- pred_eff_current
+  p <- pred_current
   p %<>% rownames_to_column('rowname')
   p %<>% group_by(Serial)
   p %<>% filter(!!sym(field) == max(!!sym(field)))
-  pred_eff_current[,toner_per_coverage[[i]]] <- NA
-  pred_eff_current[p$rowname, toner_per_coverage[[i]]] <- p[,toner_per_coverage[[i]]]
+  pred_current[,toner_per_coverage[[i]]] <- NA
+  pred_current[p$rowname, toner_per_coverage[[i]]] <- p[,toner_per_coverage[[i]]]
 }
+pred_eff_current <- pred_current %>% get_eff
+eff_current <- pred_eff_current[, toner_per_coverage]
 
 #tonerForSerial(serials[[5]])
 #tonerForSerial("E163M450041")
@@ -621,7 +648,8 @@ for(i in 1:length(colors)) {
     #c(toner_per_coverage[[i]], pages_total, colors[[i]])
     #c(toner_per_coverage[[i]], "Serial", colors[[i]])
     #c(toner_per_coverage[[i]], "RetrievedDateTime", colors[[i]])
-    c(toner_per_coverage[[i]], developer_rotation[[i]], colors[[i]])
+    #c(toner_per_coverage[[i]], developer_rotation[[i]], colors[[i]])
+    c(developer_rotation[[i]], toner_per_coverage[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_pages[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_remaining[[i]], colors[[i]])
     #c(toner_per_coverage[[i]], developer_replacement_count[[i]], colors[[i]])
@@ -635,6 +663,7 @@ for(i in 1:length(colors)) {
     #c(toner_per_coverage[[i]], "PMCount.X7956_109_Estimated.Remain.Days.PTR.Unit.SP7.956.109.Read.Only", colors[[i]])
     #c(toner_per_coverage[[i]], "PMCount.X7960_109_Estimated.Usage.Rate.PTR.Unit.SP7.960.109.Read.Only", colors[[i]])
     #c(toner_per_coverage[[i]], "PMCount.X7621_109_PM.Counter.Display.Pages.PTR.Unit.SP7.621.109.Read.Only", colors[[i]])
+    #c(toner_per_coverage[[i]], pcu_distance[[i]], colors[[i]])
     )
   )
 }
@@ -648,50 +677,49 @@ tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(25), data
 
 
 pred_eff_current_by_serial <- split(pred_eff_current, pred_eff_current$Serial)
-tonerScatterHistForSerials(pred_eff_current$Serial, list(traces[[2]]), datasets=pred_eff_current_by_serial, mode='lines')
+tonerScatterHistForSerials(pred_eff_current$Serial, traces, datasets=pred_eff_current_by_serial, mode='lines')
 
 
 
 print(paste("Summary of toner per coverage for:", paste(device_models)))
 # Summary ignores digits argument, must set option
 options(digits=10)
-summary(eff)
+summary(eff_current)
 
 
-# Find current outliers for all colors
-# TODO: restrict each color to latest developer unit
-# TODO: act on two consecutive outliers
+# Find efficiencies for current toner unit in machines with one or more outliers, on a per-color basis
 # TODO: look for correlation with customer and industry type
 
-eff_median <- apply(eff, 2, . %>% na.omit %>% median)
+eff_current_median <- apply(eff_current, 2, . %>% na.omit %>% median)
 eff_cutoff <- eff_median * 3
-candidates <- eff
-for(i in 1:ncol(candidates)) {
-  candidates[,i] <- eff[,i]
-  idx <- (candidates[,i] < eff_cutoff[[i]]) %>% which
-  candidates[idx, i] <- NA
+candidates <- pred_eff_current
+for(i in 1:length(colors)) {
+  candidates[,toner_per_coverage[[i]]] <- eff_current[,i]
+  # Find values that meet the threshold
+  idx <- (candidates[,toner_per_coverage[[i]]] >= eff_cutoff[[i]]) %>% which
+  idx_neg <- (candidates[,toner_per_coverage[[i]]] < eff_cutoff[[i]]) %>% which
+  sers <- candidates[idx,]$Serial %>% unique
+  sers_neg <- setdiff(candidates$Serial, sers)
+  candidates[candidates$Serial %in% sers_neg, toner_per_coverage[[i]]] <- NA
 }
+# Filter out rows with no toner_per_coverage values
+candidates_idxs <- apply(candidates[,toner_per_coverage], 1, function(r) !(r %>% is.na %>% all))
+candidates <- candidates[candidates_idxs,] 
 
-plotHist(candidates, cumulative=F)
-plotDensity(candidates)
-tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates, mode='lines')
+plotHist(candidates[,toner_per_coverage], cumulative=F)
+plotDensity(candidates[,toner_per_coverage])
 
-eff_filtered <- eff
-eff_filtered[eff_filtered > 0.01] <- NA
+candidates_by_serial <- split(candidates, candidates$Serial)
+tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=F, force_cmyk = T)
 
-plotHist(eff_filtered, cumulative=F)
-plotDensity(eff_filtered)
-
-
-#tonerScatterForSerials(serials, traces)
-#tonerScatterForSerials(head(serials, 250000) %>% tail(10000), traces)
-high_y <- predictors[(pred_eff[,toner_per_coverage[[2]]]>0.005) %>% which,]
-high_y_period <- high_y %>% filter(high_y[,developer_replacement_date[[2]]] > as.Date('2015-11-01') & high_y[,developer_replacement_date[[2]]] < as.Date('2015-12-31'))
-#tonerScatterHistForSerials(head(serials, 1000000) %>% tail(10000), traces, data=high_y)
-tonerScatterHistForSerials(high_y_period$Serial, list(traces[[2]]), data=pred_eff)
-
-high_y_period$Serial %>% table
-high_y_period$RetrievedDate %>% hist(breaks=10)
+for(i in 1:length(colors)) {
+  cat(paste("Outlying serials for", colors[[i]]))
+  cat("\n")
+  idxs <- candidates[,toner_per_coverage[[i]]] %>% is.na %>% not
+  sers <- candidates[idxs,]$Serial %>% unique %>% sort
+  writeLines(sers)
+  cat("\n")
+}
 
 by_s <- pred_eff %>% group_by(Serial)
 by_s[,append(c('Serial'), toner_per_coverage)] %>% dplyr::summarise_all(funs(mean(., na.rm=T), sd(., na.rm=T)))
@@ -706,6 +734,11 @@ tonerForSerial("E175M950047", 2)
 tonerForSerial("E175M950072", 2)
 tonerForSerial("E175M950335", 2)
 tonerForSerial("E175M950078", 2)
+
+tonerForSerial("E173M950189", 4)
+tonerForSerial("E175M950047", 2)
+tonerForSerial("E175MA50349", 2)
+
  
 tonerForSerial('C087C450017', 2)
 
