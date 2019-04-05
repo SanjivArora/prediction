@@ -402,7 +402,7 @@ tonerScatterHistForSerials <- function(
   for(i in 1:length(traces)) {
     t <- traces[[i]]
     print(t)
-    name <- t[[3]]
+    trace_name <- t[[3]]
     x_all <- list()
     y_all <- list()
     for(df in datasets) {
@@ -418,12 +418,18 @@ tonerScatterHistForSerials <- function(
       #print(hover_labels)
       xy <- df[,t[1:2]]
       xy <- xy[complete.cases(xy),]
+      sers <- df[complete.cases(xy),]$Serial %>% unique
       x <- xy[,1]
       y <- xy[,2]
       x_all %<>% append(x)
       y_all %<>% append(y)
       if(log_x) x %<>% log
       if(log_y) y %<>% log
+      if(length(sers) > 1) {
+        name <- trace_name
+      } else {
+        name <- paste(trace_name, sers)
+      }
       # Use arbitrary colors if we have multiple datasets, otherwise use CMYK by trace
       if(length(datasets) != 1 && !force_cmyk) {
         p %<>% add_trace(x=x, y=y, type='scatter', name=name, mode=mode, text=~hover_labels, opacity=0.7)
@@ -434,8 +440,8 @@ tonerScatterHistForSerials <- function(
     }
     xlabels %<>% append(t[[1]])
     ylabels %<>% append(t[[2]])
-    xhist %<>% add_trace(x=concat(x_all), type='histogram', name=paste("x", "hist", name), color=I(colors[[i]]))
-    yhist %<>% add_trace(y=concat(y_all), type='histogram', name=paste("y", "hist", name), color=I(colors[[i]]))
+    xhist %<>% add_trace(x=concat(x_all), type='histogram', name=paste("x", "hist", trace_name), color=I(colors[[i]]))
+    yhist %<>% add_trace(y=concat(y_all), type='histogram', name=paste("y", "hist", trace_name), color=I(colors[[i]]))
   }
   # Axis labels are the longest common subsequence set of names used
   xlabel <- LCSn(xlabels)
@@ -566,7 +572,9 @@ estimate_bottle_coverage <- function(df) {
       }
       # Calculate toner efficiency where we have a clean toner and coverage deltas for a given bottle + developer unit combination
       developer_replaced <- !identical(df[j, developer_replacement_date[[i]]], df[j-1, developer_replacement_date[[i]]])
-      if(toner_efficiency_start_index && (isTRUE(df[j, toner_replaced[[i]]]) || isTRUE(df[j, toner[[i]]] <= stop_tracking_at) || developer_replaced)) {
+      # This has the minor drawback of dropping the last sample
+      data_end <- j == nrow(df)
+      if(toner_efficiency_start_index && (isTRUE(df[j, toner_replaced[[i]]]) || isTRUE(df[j, toner[[i]]] <= stop_tracking_at) || developer_replaced || data_end)) {
         # print(df[j,"Serial"])
         # print(j)
         # print(toner_efficiency_start_index)
@@ -584,7 +592,7 @@ estimate_bottle_coverage <- function(df) {
 
         toner_efficiency_start_index <- FALSE
       }
-      # Only resume tracking when we have a reading without a toner replacement
+      # Only resume tracking when we have a toner replacement followed by a reading without a toner replacement
       if(df[j-1, toner_replaced[[i]]] %>% isTRUE && df[j, toner_replaced[[i]]] %>% isFALSE) {
         toner_efficiency_start_index <- j-1
       }
@@ -671,7 +679,8 @@ for(i in 1:length(colors)) {
 pred_eff_by_serial <- split(pred_eff, pred_eff$Serial)
 
 #tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=list(pred_eff))
-tonerScatterHistForSerials(pred_eff$Serial, list(traces[[1]]), datasets=pred_eff_by_serial, mode='lines')
+#tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=pred_eff_by_serial, mode='lines')
+tonerScatterHistForSerials(pred_eff$Serial, list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines')
 
 tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(25), datasets=pred_eff_by_serial, mode='lines')
 
@@ -691,13 +700,12 @@ summary(eff_current)
 # TODO: look for correlation with customer and industry type
 
 eff_current_median <- apply(eff_current, 2, . %>% na.omit %>% median)
-eff_cutoff <- eff_median * 3
+eff_current_cutoff <- eff_current_median * 3
 candidates <- pred_eff_current
 for(i in 1:length(colors)) {
-  candidates[,toner_per_coverage[[i]]] <- eff_current[,i]
   # Find values that meet the threshold
-  idx <- (candidates[,toner_per_coverage[[i]]] >= eff_cutoff[[i]]) %>% which
-  idx_neg <- (candidates[,toner_per_coverage[[i]]] < eff_cutoff[[i]]) %>% which
+  idx <- (candidates[,toner_per_coverage[[i]]] >= eff_current_cutoff[[i]]) %>% which
+  idx_neg <- (candidates[,toner_per_coverage[[i]]] < eff_current_cutoff[[i]]) %>% which
   sers <- candidates[idx,]$Serial %>% unique
   sers_neg <- setdiff(candidates$Serial, sers)
   candidates[candidates$Serial %in% sers_neg, toner_per_coverage[[i]]] <- NA
@@ -711,6 +719,7 @@ plotDensity(candidates[,toner_per_coverage])
 
 candidates_by_serial <- split(candidates, candidates$Serial)
 tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=F, force_cmyk = T)
+
 
 for(i in 1:length(colors)) {
   cat(paste("Outlying serials for", colors[[i]]))
