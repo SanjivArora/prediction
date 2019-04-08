@@ -306,3 +306,7 @@ latestFileDate <- function(fs=FALSE) {
   latest <- sortBy(fs, function(f) f$date, desc=TRUE)[[1]]
   return(latest$date)
 }
+
+serialToModel <- function(serial) {
+  substr(serial, 1, 3)
+}

@@ -51,6 +51,16 @@ getBucketAll <- function(bucket, ...) {
   get_bucket(bucket, max=Inf, ...)
 }
 
+# Cloudyr objects to paths
+toPaths <- function(xs) {
+  lapply(xs, function(x) x$Key)
+}
+
+# Path to qualified S3 URI
+toS3Uri <- function(path, bucket) {
+  paste('s3://', bucket, '/', path, sep='')
+}
+
 # Get matching paths for files stored as <date>/<x> for specified number of days.
 # Return paths matching specified pattern (match all by default)
 listCloudFiles <- function(bucket, days=NA, end_date=NA, pattern='*', parallel=TRUE, verbose=FALSE) {

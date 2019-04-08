@@ -7,31 +7,32 @@ require(itertools)
 require(forcats)
 require(magrittr)
 require(rstudioapi)
+require(plotly)
 
 
-################################################################################
-# Get devices to use, if this is not specified as an argument use default value
-################################################################################
-
-device_models <- getDeviceModels()
+bucket <- 'ricoh-prediction-results'
+subset <- 'trial_commercial'
+regions <- c('RNZ')
 
 ################################################################################
 # Read predictions
 ################################################################################
 
-fs_all <- list.files('predictions', full.names=TRUE)
-fs <- fs_all[grepl('.*\\d.csv', fs_all)]
+fs_all <- getBucketAll(bucket) %>% toPaths()
+fs <- fs_all[grepl(paste(subset, '/', '.*\\d.csv', sep=''), fs_all)]
+uris <- fs %>% toS3Uri(bucket)
 
-parts <- lapply(fs, read.csv)
+parts <- plapply(uris, . %>% withCloudFile(read.csv))
 preds <- rbind_list(parts)
 preds <- as.data.frame(preds)
-preds$GetDate <- as.Date(preds$GetDate)
-preds$FileDate <- as.Date(preds$FileDate)
+preds$GetDate %<>% as.Date
+preds$FileDate %<>% as.Date
 
 ################################################################################
 # Get codes
 ################################################################################
 
+device_models <- lapply(preds$Serial, serialToModel) %>% unique
 codes <- readCodes(regions, device_models, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
 
@@ -112,8 +113,6 @@ hist(as.integer(preds$FirstCodeElapsed), breaks=31)
 #hist(as.integer(preds[preds$Label=="X492_0","FirstCodeElapsed"]), breaks=31)
 #hist(as.integer(preds[preds$Label=="X899_0","FirstCodeElapsed"]), breaks=31)
 
-
-library('plotly')
 
 plot_hitrates <- function(hits, misses, labels, title="Accuracy") {
   plot_ly(x=labels, y=hits, type='bar', name='Hits') %>%

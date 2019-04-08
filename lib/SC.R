@@ -1,6 +1,6 @@
 
 # Target_codes is a list of numeric SC identifiers, main code only. Default to all codes.
-readCodes <- function(regions, models, target_codes=list(1:999), days=NA, end_date=NA, parallel=TRUE) {
+readCodes <- function(regions=NA, models=NA, target_codes=list(1:999), days=NA, end_date=NA, parallel=TRUE) {
   target_codes <- Reduce(append, target_codes)
   target_code_hash <- hash()
   for(c in target_codes) {
