@@ -20,9 +20,6 @@ sample_rate <- 1
 
 #historical_jam_predictors = FALSE
 
-deltas <- FALSE
-delta_days <- c(1, 7)
-
 selected_features <- FALSE
 
 
@@ -34,6 +31,7 @@ device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
 device_models <- c("E17")
+#device_models <- c("G75")
 #device_models <- c("V24")
 
 # For toner analysis:
@@ -131,8 +129,8 @@ grep('.*TD.Sens.Vt.Disp.Current.*', predictors %>% names()) -> p1; names(predict
 grep('.*Hum*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*PTR.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 grep('.*Drive.Distance.Counter.*Developer', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*PCU.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-
+grep('.*Replace.*PCU.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+grep('.*Fusing.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
 #predictors[,p1] %>% View
 serials <- predictors$Serial
@@ -372,6 +370,23 @@ tonerForSerial <- function(serial, color=1, dataset=NA) {
   p <- makePlotForSerial(serial, "PMCount.X7950_142_Unit.Replacement.Date.Waste.Toner.Bottle.SP7.950.142.Read.Only", yaxis="y4", plot=p, dataset=dataset)
   p <- makePlotForSerial(serial, toner[[color]], yaxis="y5", plot=p, dataset=dataset)
   #p <- makePlotForSerial(serial, coverage_prev_bottle[[color]], yaxis="y3", plot=p, dataset=dataset)
+  print(p)
+}
+
+tonerForSerialMinimal <- function(serial, color=1, dataset=NA) {
+  if(identical(dataset, NA)) dataset <- predictors
+  p <- plot_ly(width=1400, height=1000)
+  p %<>% layout(
+    title=paste("Toner:", serial),
+    yaxis=list(rangemod='nonnegative'),
+    yaxis2=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis3=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis4=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis5=list(overlaying="y", side="right", rangemode='nonnegative')
+  )
+  p <- makePlotForSerial(serial, coverage[[color]], yaxis="y", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, pages_prev[[color]], yaxis="y2", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, toner[[color]], yaxis="y3", plot=p, dataset=dataset)
   print(p)
 }
 
@@ -646,6 +661,8 @@ eff_current <- pred_eff_current[, toner_per_coverage]
 #tonerForSerial("E163M850072", 2)
 #tonerForSerial("E163MA50192", 2)
 
+#tonerForSerialMinimal("G756R840065")
+
 traces <- list()
 for(i in 1:length(colors)) {
   traces %<>% append(list(
@@ -680,7 +697,7 @@ pred_eff_by_serial <- split(pred_eff, pred_eff$Serial)
 
 #tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=list(pred_eff))
 #tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=pred_eff_by_serial, mode='lines')
-tonerScatterHistForSerials(pred_eff$Serial, list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines')
+tonerScatterHistForSerials(pred_eff$Serial, list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines', log_y = T)
 
 tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(25), datasets=pred_eff_by_serial, mode='lines')
 
@@ -770,86 +787,21 @@ for(label in keys(models)) {
   showModelFeatureImportance(models[[label]], n=30)
 }
 
-################################################################################
-# Toner reporting capabilities
-################################################################################
 
-sources <- c('Count', 'PMCount')
-fs <- instancesForBucket(days=7, end_date=as.Date('2019-03-10'), sources=sources, cls=DataFile, verbose=TRUE, parallel=TRUE)
-#fs <- sortBy(fs, function(x) x$model)
-#file_sets <- getDailyFileSets(fs, sources)
-#model_names <- lapply(file_sets, function(x) x[[1]]$model)
+locations <- withCloudFile('s3://ricoh-prediction-misc/locations.csv', read.csv)
 
-file_groups <- groupBy(fs, function(x) x$model)
-model_names <- names(file_groups)
-
-dfs <- plapply(
-  values(file_groups),
-  function(data_files) {
-    dataFilesToDataset(
-      data_files,
-      sources,
-      sample_rate,
-      sc_code_days,
-      delta_days=delta_days,
-      deltas=deltas,
-      only_deltas=only_deltas,
-      features=FALSE,
-      parallel=parallel
-    )
-  },
-  parallel=TRUE
+i <- 2
+fs <- c(
+  toner_per_coverage[[i]],
+  developer_rotation[[i]],
+  developer_replacement_date[[i]],
+  "PMCount.X7950_71_Unit.Replacement.Date.PCU.Y.SP7.950.071.Read.Only",
+  "PMCount.X7950_115_Unit.Replacement.Date.Fusing.Unit.SP7.950.115.Read.Only",                  
+  "PMCount.X7950_116_Unit.Replacement.Date.Fusing.Belt.SP7.950.116.Read.Only"
+)
+plot_ly(
+  type='parcoords',
+  dimensions = lapply(fs[1:3], function(f) list(label=f, values=pred_eff[,f] %>% as.numeric)),
+  line = list(color=(pred_eff[,fs[[1]]] %>% log))
 )
 
-dfs <- plapply(dfs, function(x) x %>% distinct(Serial, .keep_all=TRUE))
-
-totals <- hash()
-model_capabilities <- hash()
-capability_sets <- hash()
-capability_set_counts <- hash()
-for (i in 1:length(dfs)) {
-  #print("")
-  name <- model_names[[i]]
-  #print(name)
-  df <- dfs[[i]]
-  #print(nrow(df))
-  #print(ncol(df))
-  grep('.*Accumulation.*Coverage.*', df %>% names()) -> cov#; names(df)[cov] %>% print
-  grep('.*Remaining.Toner*', df %>% names()) -> rem; #names(df)[rem] %>% print
-  grep('.*Pages.Current.Toner.*', df %>% names()) -> cur#; names(df)[cur] %>% print
-  grep('.*Pages.Current.Toner.*prev.*', df %>% names()) -> prev#; names(df)[prev] %>% print
-  grep('.*Toner.Bottle.Log5.*', df %>% names()) -> log; #names(df[log]) %>% print
-  
-  # Check that specified names have a rage of values 
-  has_values <- function(ns, n=2) {
-    df[,ns] %>% unlist %>% unique %>% length -> l
-    l >= n
-  }
-  
-  capability_set <- list()
-  process <- function(ns, s, s2) {
-    if(length(ns) && has_values(ns)) {
-      #print(s2)
-      #print(names(df[ns]))
-      totals[[s2]] <- getWithDefault(totals, s2, 0) + nrow(df)
-      model_capabilities[[s2]] <- getWithDefault(model_capabilities, s2, list()) %>% append(name)
-      capability_set <<- append(capability_set, s2)
-    }
-  }
-  process(cov, 'cov', 'Coverage')
-  process(rem, 'rem', 'Toner level')
-  process(cur, 'cur', 'Pages for current toner')
-  process(prev, 'prev', 'Pages for previous toner')
-  process(log, 'log', 'Toner bottle log')
-  if(!length(capability_set)) capability_set <- c('<None / No Data>')
-  capability_set %<>% toString
-  capability_sets[[capability_set]] <- getWithDefault(capability_sets, capability_set, list()) %>% append(name) 
-  capability_set_counts[[capability_set]] <- getWithDefault(capability_set_counts, capability_set, 0) + nrow(df)
-}
-
-print(model_capabilities)
-print(capability_sets)
-print(capability_set_counts)
-print(totals)
-total_n <- lapply(dfs, nrow) %>% unlist %>% sum
-print(paste("Total number of machines with data:", total_n))

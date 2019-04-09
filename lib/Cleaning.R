@@ -74,8 +74,7 @@ relativeReplacementDates <- function(predictors) {
     return(predictors)
   }
   
-  # For some reason R automatically converts the date type to integer
-  date_cols <- as.numeric(predictors[,date_field]) - date_cols
+  date_cols <- as.numeric(predictors$RetrievedDate) - as.numeric(predictors[,date_field])
   predictors[,replacement_date_cols] <- date_cols
   return(predictors)
 }
