@@ -166,14 +166,14 @@ models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, p
 # Evaluate performance
 ################################################################################
 
-stats <- evaluateModelSet(models, test_data, test_responses, parallel=F)
+stats <- evaluateModelSet(models, test_data, test_responses, parallel=T)
 # candidate_stats <- getCandidateModelStats(stats)
 # evaluateModelSet(models[candidate_stats$label], test_data, test_responses)
 
 for(label in keys(models)) {
   cat("\n\n")
   print(paste("Importance for", label))
-  showModelFeatureImportance(models[[label]], n=10)
+  showModelFeatureImportance(models[[label]], n=15)
 }
 
 #print(candidate_stats)

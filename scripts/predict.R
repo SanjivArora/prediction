@@ -19,11 +19,17 @@ parallel=TRUE
 delivery_address <- 'pvanrensburg@ricoh.co.nz'
 #delivery_address <- 'smatthews@ricoh.co.nz'
 
-cc_address <- 'smatthews@ricoh.co.nz'
+cc_address <- c(
+  'smatthews@ricoh.co.nz',
+  'redwy@ricoh.co.nz'
+)
 
 from_address <- 'ricoh-prediction-mail@sdmatthews.com'
 
 aws_ses_region <- 'us-east-1'
+
+# Send a given prediction once within this period
+days_current <- 60
 
 
 ################################################################################
@@ -64,10 +70,10 @@ if(identical(end_date, NA)) {
 # SC & Jam Codes
 ################################################################################
 
-codes <- readCodes(regions, device_models, target_codes, end_date=end_date, days=days, parallel=parallel)
+codes <- readCodes(regions, device_models, target_codes, end_date=end_date, days=data_days, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
 
-jams <- readJamCodes(regions, device_models, target_codes, end_date=end_date, days=days, parallel=parallel)
+jams <- readJamCodes(regions, device_models, target_codes, end_date=end_date, days=data_days, parallel=parallel)
 serial_to_jams <- makeSerialToCodes(jams)
 
 ################################################################################
@@ -162,7 +168,7 @@ hits <- mapHash(predictions, function(p) p$data[p$data$prob.TRUE>0.8,])
 parts <- list()
 for(label in names(predictions)) {
   ps <- predictions[[label]]
-  part <- predictors[row.names(ps$data), c("Serial","GetDate","FileDate")]
+  part <- predictors[row.names(ps$data) %>% as.integer, c("Serial","GetDate","FileDate")]
   part[,'Label'] <- label
   part[,'Confidence'] <- ps$data$prob.TRUE
   parts <- append(parts, list(part))
@@ -172,27 +178,48 @@ predictions_narrow <- bind_rows(parts)
 predictions_hits <- predictions_narrow[predictions_narrow$Confidence > threshold,]
 
 ################################################################################
+# Filter hits - only include (serial, label) combinations that we haven't sent in the past 60 days in the actionable set
+################################################################################
+
+fs_all <- getBucketAll(results_s3_bucket) %>% toPaths()
+fs <- fs_all[grepl(paste(device_group, '/', '.*\\d.csv', sep=''), fs_all)]
+uris <- fs %>% toS3Uri(results_s3_bucket)
+
+parts <- plapply(uris, purrr::possibly(. %>% withCloudFile(read.csv), FALSE))
+parts %<>% filterBy(. %>% isFALSE %>% not)
+preds <- rbind_list(parts)
+preds <- as.data.frame(preds)
+preds$GetDate %<>% as.Date
+preds$FileDate %<>% as.Date
+
+current <- preds[preds$FileDate > Sys.Date() - days_current,]
+fresh_predictions_hits <- anti_join(predictions_hits, current, by=c('Serial', 'Label'))
+n_dropped <- nrow(predictions_hits) - nrow(fresh_predictions_hits)
+dropped_text <- paste("Dropped", n_dropped, "predictions already sent within the past", days_current, "days")
+print(dropped_text)
+
+################################################################################
 # Write predictions to cloud storage as CSV
 ################################################################################
 
 latest_file_date <- max(predictors_all$FileDate)
 hits_path <- paste(device_group, paste(latest_file_date, "csv", sep="."), sep='/')
 all_path <- paste(device_group, paste(latest_file_date, "all.csv", sep="."), sep='/')
-s3write_using(predictions_hits, write.csv, bucket=results_s3_bucket, object=hits_path, opts=list('row.names'=FALSE))
+s3write_using(fresh_predictions_hits, write.csv, bucket=results_s3_bucket, object=hits_path, opts=list('row.names'=FALSE))
 s3write_using(predictions_narrow, write.csv, bucket=results_s3_bucket, object=all_path, opts=list('row.names'=FALSE))
-
 
 ################################################################################
 # Email prediction hits to the configured address
 ################################################################################
 
 # xtable seems to want to represent dates as integers, so explicitly format to string
-predictions_hits_formatted <- predictions_hits
+predictions_hits_formatted <- fresh_predictions_hits
 predictions_hits_formatted[,c("GetDate", "FileDate")] <- format(predictions_hits_formatted[,c("GetDate", "FileDate")])
 # Sort by serial
 predictions_hits_formatted <- predictions_hits_formatted[order(predictions_hits_formatted$Serial),]
 row.names(predictions_hits_formatted) <- c()
-html <- print(xtable(predictions_hits_formatted), type='html')
+caption_text <- paste("Current predictions (", dropped_text, ")", sep='')
+html <- print(xtable(predictions_hits_formatted, caption=caption_text), type='html')
 devices_string <- paste("(", paste(device_models, collapse=", ", sep=""), ")", sep="")
 
 if(!no_email) {

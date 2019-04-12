@@ -474,7 +474,7 @@ tonerScatterHistForSerials <- function(
 }
 
 # KYMC histogram
-plotHist <- function(xs, names=NA, cumulative=T, color=color_scheme, histnorm='') {
+plotHist <- function(xs, names=NA, cumulative=F, color=color_scheme, histnorm='') {
   if(identical(names, NA)) names <- colors
   p <- plot_ly(width=1400, height=1000)
   for(i in 1:length(xs)) {
@@ -630,6 +630,11 @@ serial_dfs <- split(predictors_orig, predictors_orig$Serial)
 serial_dfs <- plapply(serial_dfs, process_serial_df, parallel=T)
 predictors <- bindRowsForgiving(serial_dfs)
 
+# Add location data
+locations <- withCloudFile('s3://ricoh-prediction-misc/locations.csv', read.csv)
+locations$Serial <- locations$SerialNo
+predictors %<>% join(locations, by='Serial')
+
 # Fine readings for current developer unit
 
 # Examine efficiency
@@ -654,14 +659,6 @@ for(i in 1:length(colors)) {
 }
 pred_eff_current <- pred_current %>% get_eff
 eff_current <- pred_eff_current[, toner_per_coverage]
-
-#tonerForSerial(serials[[5]])
-#tonerForSerial("E163M450041")
-#tonerForSerial("E163M750100")
-#tonerForSerial("E163M850072", 2)
-#tonerForSerial("E163MA50192", 2)
-
-#tonerForSerialMinimal("G756R840065")
 
 traces <- list()
 for(i in 1:length(colors)) {
@@ -751,57 +748,100 @@ by_s <- pred_eff %>% group_by(Serial)
 by_s[,append(c('Serial'), toner_per_coverage)] %>% dplyr::summarise_all(funs(mean(., na.rm=T), sd(., na.rm=T)))
 
 
+#tonerForSerial(serials[[5]])
+#tonerForSerial("E163M450041")
+#tonerForSerial("E163M750100")
+#tonerForSerial("E163M850072", 2)
+#tonerForSerial("E163MA50192", 2)
+
+#tonerForSerialMinimal("G756R840065")
+# 
+# tonerForSerial("E175M950201", 2)
+# tonerForSerial("E175M950223", 2)
+# tonerForSerial("E175M950227", 2)
+# tonerForSerial("E175M950047", 2)
+# tonerForSerial("E175M950072", 2)
+# tonerForSerial("E175M950335", 2)
+# tonerForSerial("E175M950078", 2)
+# 
+# tonerForSerial("E173M950189", 4)
+# tonerForSerial("E175M950047", 2)
+# tonerForSerial("E175MA50349", 2)
+# 
+# tonerForSerial('C087C450017', 2)
 
 
-tonerForSerial("E175M950201", 2)
-tonerForSerial("E175M950223", 2)
-tonerForSerial("E175M950227", 2)
-tonerForSerial("E175M950047", 2)
-tonerForSerial("E175M950072", 2)
-tonerForSerial("E175M950335", 2)
-tonerForSerial("E175M950078", 2)
-
-tonerForSerial("E173M950189", 4)
-tonerForSerial("E175M950047", 2)
-tonerForSerial("E175MA50349", 2)
-
- 
-tonerForSerial('C087C450017', 2)
-
-
-# Predict high toner use per coverage
-ps <- predictors[!is.na(predictors$Toner.Per.Coverage.Y),]
-ps_eligible <- filterIneligibleFields(ps, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=replace_nas)
-
-used_labels <- c("Toner.Usage.High.Y", "Toner.Usage.High.M")
-responses <- ps_eligible$Toner.Per.Coverage.Y %>% as.data.frame
-responses[,1] <- ps_eligible$Toner.Per.Coverage.Y > 0.002
-responses[,2]<- ps_eligible$Toner.Per.Coverage.M > 0.002
-names(responses) <- used_labels
-# Train models in parallel as despite native threading support there are substantial serial sections
-models <- trainModelSet(used_labels, ps_eligible, responses, ntree=ntree, parallel=F)
-
-for(label in keys(models)) {
-  cat("\n\n")
-  print(paste("Importance for", label))
-  showModelFeatureImportance(models[[label]], n=30)
-}
+# # Predict high toner use per coverage
+# ps <- predictors[!is.na(predictors$Toner.Per.Coverage.Y),]
+# ps_eligible <- filterIneligibleFields(ps, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=replace_nas)
+# 
+# used_labels <- c("Toner.Usage.High.Y", "Toner.Usage.High.M")
+# responses <- ps_eligible$Toner.Per.Coverage.Y %>% as.data.frame
+# responses[,1] <- ps_eligible$Toner.Per.Coverage.Y > 0.002
+# responses[,2]<- ps_eligible$Toner.Per.Coverage.M > 0.002
+# names(responses) <- used_labels
+# # Train models in parallel as despite native threading support there are substantial serial sections
+# models <- trainModelSet(used_labels, ps_eligible, responses, ntree=ntree, parallel=F)
+# 
+# for(label in keys(models)) {
+#   cat("\n\n")
+#   print(paste("Importance for", label))
+#   showModelFeatureImportance(models[[label]], n=30)
+# }
 
 
-locations <- withCloudFile('s3://ricoh-prediction-misc/locations.csv', read.csv)
 
 i <- 2
 fs <- c(
   toner_per_coverage[[i]],
   developer_rotation[[i]],
   developer_replacement_date[[i]],
+  "RegnState",
   "PMCount.X7950_71_Unit.Replacement.Date.PCU.Y.SP7.950.071.Read.Only",
   "PMCount.X7950_115_Unit.Replacement.Date.Fusing.Unit.SP7.950.115.Read.Only",                  
   "PMCount.X7950_116_Unit.Replacement.Date.Fusing.Belt.SP7.950.116.Read.Only"
 )
 plot_ly(
   type='parcoords',
-  dimensions = lapply(fs[1:3], function(f) list(label=f, values=pred_eff[,f] %>% as.numeric)),
+  dimensions = lapply(fs[1:4], function(f) list(label=f, values=pred_eff[,f] %>% as.numeric)),
   line = list(color=(pred_eff[,fs[[1]]] %>% log))
 )
 
+cov_for_period <- group_by(predictors, Serial) %>% dplyr::summarize(cov_period_y = sum(!!sym(coverage_delta[[2]]), na.rm=T), replacements_y=sum(!!sym(toner_replaced[[2]]), na.rm=T), eff_y=mean(!!sym(toner_per_coverage[[2]]), na.rm=T))
+cov_for_period <- cov_for_period[order(-cov_for_period$cov_period_y),]
+cov_for_period <- cov_for_period[order(-cov_for_period$replacements_y),]
+
+
+sers <- c(
+# Normal
+'E174M350014',
+'E176M340565',
+'E174M850154',
+'E175M950042',
+'E175M950023',
+# Problem
+'E175M950201',
+'E175M950227',
+'E175M950047',
+'E175M950335'
+# Incipient
+#'E175M950128'
+)
+for(ser in sers) {
+  e <- pred_eff[pred_eff$Serial==ser,toner_per_coverage]
+  print(ser)
+  print(e)
+  print(cov_for_period[cov_for_period$Serial==ser,])
+}
+
+for(ser in sers) {
+  tonerForSerial(ser,2)
+}
+
+
+by_regn <- group_by(predictors, RegnState) %>% dplyr::summarize(machines=length(unique(Serial)), pages = sum(!!sym(pages_delta), na.rm=T), cov.y = sum(!!sym(coverage_delta[[2]]), na.rm=T), replacements.y=sum(!!sym(toner_replaced[[2]]), na.rm=T), toner.per.y=mean(!!sym(toner_per_coverage[[2]]), na.rm=T))
+by_regn
+plot_ly(x=by_regn$RegnState, y=by_regn$toner.per.y)                                                                
+
+effs <- eff_current[eff_current[,toner_per_coverage] < 0.01, toner_per_coverage]
+plotHist(effs)

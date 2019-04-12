@@ -11,7 +11,7 @@ feature_files <- c('top.txt')
 selected_features <- TRUE
 
 # Maximum number of days of predictor data files to use for training
-data_days <- 1200
+data_days <- 100
 
 # Fraction of observations to use
 sample_rate <- 1

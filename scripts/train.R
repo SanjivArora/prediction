@@ -42,17 +42,17 @@ if(selected_features) {
 # SC & Jam Codes
 ################################################################################
 
-codes <- readCodes(regions, device_models, target_codes, days=days, parallel=parallel)
+codes <- readCodes(regions, device_models, target_codes, days=data_days, parallel=parallel)
 serial_to_codes <- makeSerialToCodes(codes)
 
-jams <- readJamCodes(regions, device_models, target_codes, days=days, end_date=end_date, parallel=parallel)
+jams <- readJamCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
 serial_to_jams <- makeSerialToCodes(jams)
 
 ################################################################################
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=days, end_date=end_date)
+file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=data_days, end_date=end_date)
 if(!is.na(data_days)) {
   file_sets <- tail(file_sets, data_days)
 }
