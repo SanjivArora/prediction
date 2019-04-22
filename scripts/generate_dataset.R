@@ -13,17 +13,18 @@ input_bucket <- 'ricoh-prediction-data-aligned'
 output_bucket <- 'ricoh-prediction-data-cache'
 
 parallel <- TRUE
-#days <- 1000
-days <- 30
+days <- 1000
+#days <- 30
 
 # Maximum allowed time difference between readings, measured from first source to each subsequent source
 max_hours <- 12
 
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count', 'RomVer')
-#sources <- c('PMCount')
+sources <- c('PMCount')
 #models <- c('E16', 'E15', 'C08') 
-models <- c('E16')
+#models <- c('E16')
+models <- NA
 
 ################################################################################
 # Functions
@@ -110,16 +111,45 @@ getPath <- function(date, region, model, source) {
   return(path)
 }
 
+writeDF <- function(df, date, model, region) {
+  # <date>/<region>/<model>.feather
+  path <- paste(date, region, paste(model, "feather", sep="."), sep="/")
+  print(paste("Writing", path))
+  s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
+}
+
+getModels <- function() {
+  fs <- listCloudFiles(input_bucket)
+  models <- lapply(fs, function(f) strsplit(f, '/')[[1]][[3]])
+  models %<>% unique %>% unlist %>% sort
+  return(models)
+}
+
 ################################################################################
 # Main
 ################################################################################
 
-res <- NA
+if(identical(models, NA)) {
+  models <- getModels()
+}
+
 for(region in regions) {
   for(model in models) {
-    res <<- getData(days, region, model, sources)
-    print(nrow(res))
-    print(ncol(res))
+    tryCatch({
+      print(paste("Getting predictors for", model, "in", region))
+      res <- getData(days, region, model, sources)
+      if(identical(res, NA)) {
+        print(paste("No days of complete data for", model))
+        next
+      }
+      nser <- res$Serial %>% unique %>% length
+      print(paste("Gathered", print(ncol(res)), "columns and", print(nrow(res)), "rows for", nser, "machines"))
+      print(paste("Writing predictors for", model, "in", region))
+      writeDF(res, Sys.Date(), model, region)
+    }, error=function(e) {
+      print(paste("Encountered error processing model", model, "in", region))
+      print(e) 
+    })
   }
 }
 

@@ -20,9 +20,9 @@ margin_days <- 7
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count', 'RomVer')
 #sources <- c('PMCount')
-models <- c('E16', 'E15', 'C08') 
+#models <- c('E16', 'E15', 'C08') 
 #models <- c('E15')
-
+models <- NA
 ################################################################################
 # Functions
 ################################################################################
@@ -48,16 +48,22 @@ processSource <- function(src) {
       ms <- intersect(ms, models)
     }
     for(model in ms) {
-      model_fs <- model_to_fs[[model]]
-      timeit(
-        date_to_df <- processModel(model, model_fs, region, src),
-        paste("processing", model)
-      )
-      #date_to_df[keys(date_to_df)] %>% lapply(nrow) %>% print
-      timeit(
-        writeData(date_to_df, model, region, src),
-        paste("writing", model)
-      )
+      tryCatch({
+        model_fs <- model_to_fs[[model]]
+        timeit(
+          date_to_df <- processModel(model, model_fs, region, src),
+          paste("processing", model)
+        )
+        #date_to_df[keys(date_to_df)] %>% lapply(nrow) %>% print
+        timeit(
+          writeData(date_to_df, model, region, src),
+          paste("writing", model)
+        )
+      },
+      error=function(e) {
+        print(paste("Encountered error processing model", model, "in", region))
+        print(e)
+      })
     }
   }
 }

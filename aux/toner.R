@@ -620,7 +620,8 @@ estimate_bottle_coverage <- function(df) {
         stop_tracking_at <- 5
       }
       # Calculate toner efficiency where we have a clean toner and coverage deltas for a given bottle + developer unit combination
-      developer_replaced <- !identical(df[j, developer_replacement_date[[i]]], df[j-1, developer_replacement_date[[i]]])
+      # Check both replacement dates and developer rotation/yield as some machines don't necessarily record replacement date for new units (e.g. E15)
+      developer_replaced <- !identical(df[j, developer_replacement_date[[i]]], df[j-1, developer_replacement_date[[i]]]) || (df[j, developer_rotation[[i]]] < df[j-1, developer_rotation[[i]]])
       # This has the minor drawback of dropping the last sample
       data_end <- j == nrow(df)
       if(toner_efficiency_start_index && (isTRUE(df[j, toner_replaced[[i]]]) || isTRUE(df[j, toner[[i]]] <= stop_tracking_at) || developer_replaced || data_end)) {
