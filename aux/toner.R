@@ -27,7 +27,7 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("E15")
+device_models <- c("E17")
 #device_models <- c("G75")
 #device_models <- c("V24")
 
@@ -60,7 +60,7 @@ predictors_all <- dataFilesToDataset(
   sample_rate,
   sc_code_days,
   delta_days=delta_days,
-  deltas=deltas,
+  deltas=FALSE,
   only_deltas=only_deltas,
   features=fs,
   parallel=parallel
@@ -274,7 +274,7 @@ if(device_models[[1]] %>% isProduction) {
     "PMCount.X7942_27_Drive.Distance.Counter.C_Developer.SP7.942.027"
   )
 }
-  
+
 all_names <- concat(c(coverage, coverage_current, toner, pages_current, pages_prev, c(pages_total), developer_rotation))
 missing <- setdiff(all_names, names(predictors))
 if(length(missing) > 0) {
@@ -391,6 +391,7 @@ tonerForSerialMinimal <- function(serial, color=1, dataset=NA) {
   p <- makePlotForSerial(serial, coverage[[color]], yaxis="y", plot=p, dataset=dataset)
   p <- makePlotForSerial(serial, pages_prev[[color]], yaxis="y2", plot=p, dataset=dataset)
   p <- makePlotForSerial(serial, toner[[color]], yaxis="y3", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, developer_replacement_date[[color]], yaxis="y4", plot=p, dataset=dataset)
   print(p)
 }
 
@@ -465,10 +466,10 @@ tonerScatterHistForSerials <- function(
       }
       x <- xy[,1]
       y <- xy[,2]
-      x_all %<>% append(x)
-      y_all %<>% append(y)
       if(log_x) x %<>% log
       if(log_y) y %<>% log
+      x_all %<>% append(x)
+      y_all %<>% append(y)
       print(x)
       print(y)
       if(length(t) > 3) hover_fields <- t[[4]] else hover_fields <- c('Serial')
@@ -769,7 +770,7 @@ plotHist(candidates[,toner_per_coverage], cumulative=F)
 plotDensity(candidates[,toner_per_coverage])
 
 candidates_by_serial <- split(candidates, candidates$Serial)
-tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=F, force_cmyk = T)
+tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=T, force_cmyk = T)
 
 
 for(i in 1:length(colors)) {
@@ -793,20 +794,21 @@ by_s[,append(c('Serial'), toner_per_coverage)] %>% dplyr::summarise_all(funs(mea
 
 #tonerForSerialMinimal("G756R840065")
 # 
-# tonerForSerial("E175M950201", 2)
-# tonerForSerial("E175M950223", 2)
-# tonerForSerial("E175M950227", 2)
-# tonerForSerial("E175M950047", 2)
-# tonerForSerial("E175M950072", 2)
-# tonerForSerial("E175M950335", 2)
-# tonerForSerial("E175M950078", 2)
-# 
-# tonerForSerial("E173M950189", 4)
-# tonerForSerial("E175M950047", 2)
-# tonerForSerial("E175MA50349", 2)
-# 
-# tonerForSerial('C087C450017', 2)
+tonerForSerialMinimal("E175M950201", 2)
+tonerForSerialMinimal("E175M950223", 2)
+tonerForSerialMinimal("E175M950227", 2)
+tonerForSerialMinimal("E175M950047", 2)
+tonerForSerialMinimal("E175M950072", 2)
+tonerForSerialMinimal("E175M950335", 2)
+tonerForSerialMinimal("E175M950078", 2)
 
+tonerForSerialMinimal("E173M950189", 4)
+tonerForSerialMinimal("E175M950047", 2)
+tonerForSerialMinimal("E175MA50349", 2)
+# 
+# tonerForSerialMinimal('C087C450017', 2)
+
+tonerForSerialMinimal("E204R770566", 1)
 
 # # Predict high toner use per coverage
 # ps <- predictors[!is.na(predictors$Toner.Per.Coverage.Y),]

@@ -191,7 +191,7 @@ top_features <- topModelsFeatures(models, frac=0.5)
 # Misc
 ################################################################################
 
-#plotLatency(predictors_all)
+plotLatency(predictors_all)
 
 # Plot distribution of predictor values for different model groups
 # Get predictors with NAs
@@ -211,15 +211,15 @@ top_features <- topModelsFeatures(models, frac=0.5)
 #service_codes <- readCodes(NA, NA, target_codes, days=data_days, end_date=end_date, parallel=parallel)
 
 # Service code frequency
-# up_to <- as.Date('2019-04-04')
+# up_to <- as.Date('2019-05-01')
 # weeks <- 52
 # service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial & service_codes$Serial %in% z & service_codes$OCCUR_DETAIL=='pcl',]$OCCUR_DATE %>% hist(breaks=80)
 # service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial %in% z,]$OCCUR_DATE -> dates
-# service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial %in% z & service_codes$OCCUR_DETAIL=='pcl',]$OCCUR_DATE -> dates
-# plot_ly(x=dates, type="histogram", nbinsx=weeks)
-# #service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table(exclude=0) %>% View
-# 
-# # 899 cause breakdown
+service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial %in% z & service_codes$OCCUR_DETAIL=='pcl',]$OCCUR_DATE -> dates
+plot_ly(x=dates, type="histogram", nbinsx=weeks)
+service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table(exclude=0) %>% View
+#
+# 899 cause breakdown
 # service_codes <- readCodes()
 # service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table() %>% as.data.frame -> x
 # x$OCCUR_DETAIL %<>% as.character
@@ -228,7 +228,7 @@ top_features <- topModelsFeatures(models, frac=0.5)
 # x <- x[!others,]
 # x[length(x)+1,] <- c('other', 899, others_sum)
 # plot_ly(values=x$Freq, labels=x$OCCUR_DETAIL, type='pie')
-
+ 
 # require(readxl)
 # scheduled <- withCloudFile('s3://ricoh-prediction-misc/scheduled.xlsx', read_excel)
 # names(scheduled) <- c("Date", "Serial")

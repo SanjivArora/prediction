@@ -21,7 +21,7 @@ max_hours <- 12
 
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count', 'RomVer')
-sources <- c('PMCount')
+#sources <- c('PMCount')
 #models <- c('E16', 'E15', 'C08') 
 #models <- c('E16')
 models <- NA
@@ -113,7 +113,8 @@ getPath <- function(date, region, model, source) {
 
 writeDF <- function(df, date, model, region) {
   # <date>/<region>/<model>.feather
-  path <- paste(date, region, paste(model, "feather", sep="."), sep="/")
+  date_string <- date %>% as.character('%Y%m%d')
+  path <- paste(date_string, region, paste(model, "feather", sep="."), sep="/")
   print(paste("Writing", path))
   s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
 }
