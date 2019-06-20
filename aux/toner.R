@@ -27,7 +27,7 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("E17")
+device_models <- c("E15")
 #device_models <- c("G75")
 #device_models <- c("V24")
 
@@ -663,7 +663,11 @@ process_serial_df <- function(df) {
 }
 
 serial_dfs <- split(predictors_orig, predictors_orig$Serial)
-serial_dfs <- plapply(serial_dfs, process_serial_df, parallel=T)
+serial_dfs <- plapply(serial_dfs, function(x) tryCatch(process_serial_df(x), error=function(e) NULL),  parallel=T)
+n_errs <- serial_dfs %>% filterBy(is.null) %>% length
+if(n_errs > 0) {
+  print(paste("Warning, ", n_errs, " serials could not be processed"))
+}
 predictors <- bindRowsForgiving(serial_dfs)
 
 # Add location data
@@ -671,7 +675,13 @@ locations <- withCloudFile('s3://ricoh-prediction-misc/locations.csv', read.csv)
 locations$Serial <- locations$SerialNo
 predictors %<>% join(locations, by='Serial')
 
-# Fine readings for current developer unit
+# Fi
+
+#tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=list(pred_eff))
+tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=pred_eff_by_serial, mode='lines', force_cmyk = T)
+tonerScatterHistForSerials(pred_eff$Serial, list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines', log_y = F)
+
+tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(2), line readings for current developer unit
 
 # Examine efficiency
 get_eff <- function(preds) {
@@ -728,13 +738,7 @@ for(i in 1:length(colors)) {
   )
 }
 
-pred_eff_by_serial <- split(pred_eff, pred_eff$Serial)
-
-#tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=list(pred_eff))
-tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=pred_eff_by_serial, mode='lines', force_cmyk = T)
-tonerScatterHistForSerials(pred_eff$Serial, list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines', log_y = F)
-
-tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(2), list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines')
+pred_eff_by_serial <- split(pred_eff, pred_eff$Serial)st(traces[[2]]), datasets=pred_eff_by_serial, mode='lines')
 
 
 pred_eff_current_by_serial <- split(pred_eff_current, pred_eff_current$Serial)
@@ -771,6 +775,7 @@ plotDensity(candidates[,toner_per_coverage])
 
 candidates_by_serial <- split(candidates, candidates$Serial)
 tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=T, force_cmyk = T)
+tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=F, force_cmyk = T)
 
 
 for(i in 1:length(colors)) {
@@ -889,5 +894,11 @@ tonerForSerial("E154MA50090",2)
 replacementDates("E154MA50090",2)
 
 i = 1
-by_ser <- group_by(predictors[predictors$Serial %in% candidates$Serial,], Serial) %>% dplyr::summarize(machines=length(unique(Serial)), pages = sum(!!sym(pages_delta), na.rm=T), cov.color = sum(!!sym(coverage_delta[[i]]), na.rm=T), replacements.color=sum(!!sym(toner_replaced[[i]]), na.rm=T), toner.per.color=mean(!!sym(toner_per_coverage[[i]]), na.rm=T))
+by_ser <- group_by(predictors[predictors$Serial %in% candidates$Serial,], Serial) %>% dplyr::summarize(
+    machines=length(unique(Serial)),
+    pages = sum(!!sym(pages_delta), na.rm=T),
+    cov.color = sum(!!sym(coverage_delta[[i]]), na.rm=T),
+    replacements.color=sum(!!sym(toner_replaced[[i]]), na.rm=T),
+    toner.per.color=mean(!!sym(toner_per_coverage[[i]]), na.rm=T)
+)
 by_ser %>% View
