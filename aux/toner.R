@@ -27,7 +27,7 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("E15")
+device_models <- c("E19")
 #device_models <- c("G75")
 #device_models <- c("V24")
 
@@ -77,12 +77,6 @@ predictors <- predictors_orig
 print(paste(nrow(predictors), "total observations"))
 
 ################################################################################
-# Restrict to valid numeric values
-################################################################################
-
-#predictors_eligible <- filterIneligibleFields(predictors, string_factors=factor_fields, exclude_cols=exclude_fields, replace_na=replace_nas)
-
-################################################################################
 # Toner exploration and graphing
 ################################################################################
 
@@ -103,31 +97,34 @@ print(paste(nrow(predictors), "total observations"))
 # s3saveRDS(responses, 'data/responses.RDS', 'ricoh-prediction-misc')
 
 field <- "PMCount.X7931_11_Toner.Bottle.Bk.Serial.No.SP7.931.011"
-grep('.*Toner.Bottle*', predictors %>% names()) -> pos
-grep('.*Coverage.*', predictors %>% names()) -> pos
-grep('(.*Toner.*)|GetDate.*|Serial', predictors %>% names()) -> pos
-#predictors[predictors$Serial==serials[[4]],pos] %>% View
+# grep('.*Toner.Bottle*', predictors %>% names()) -> pos
+# grep('.*Coverage.*', predictors %>% names()) -> pos
+# grep('(.*Toner.*)|GetDate.*|Serial', predictors %>% names()) -> pos
+# #predictors[predictors$Serial==serials[[4]],pos] %>% View
+# 
+# grep('.*Bottle*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*End.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Remain.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*PGS.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('Accumulation.*Coverage.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Current.Toner*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Remaining.Toner*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Toner.Bottle*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Waste.Toner.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Page.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Coverage.*K.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Developer*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Dev.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Vtref.Display.Setting.Current.Value.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*TD.Sens.Vt.Disp.Current.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Hum*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*PTR.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Drive.Distance.Counter.*Developer', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Replace.*PCU.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Fusing.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*\\.V.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Sens.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
-grep('.*Bottle*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*End.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Remain.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*PGS.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('Accumulation.*Coverage.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Current.Toner*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Remaining.Toner*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Toner.Bottle*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Waste.Toner.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Page.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Coverage.*K.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Developer*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Dev.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Vtref.Display.Setting.Current.Value.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*TD.Sens.Vt.Disp.Current.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Hum*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*PTR.Unit.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Drive.Distance.Counter.*Developer', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Replace.*PCU.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
-grep('.*Fusing.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
 #predictors[,p1] %>% View
 serials <- predictors$Serial
@@ -367,13 +364,18 @@ tonerForSerial <- function(serial, color=1, dataset=NA) {
   p <- makePlotForSerial(serial, coverage[[color]], yaxis="y", plot=p, dataset=dataset)
   p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y2", plot=p, dataset=dataset)
   #p <- makePlotForSerial(serial, coverage_prev_bottle[[i]], plot=p, dataset=dataset)
-  p <- makePlotForSerial(serial, pages_prev[[color]], yaxis="y3", plot=p, dataset=dataset)
+  #p <- makePlotForSerial(serial, pages_prev[[color]], yaxis="y3", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, vtref[[color]], yaxis="y4", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, td_sens[[color]], yaxis="y4", plot=p, dataset=dataset)
   p <- makePlotForSerial(serial, developer_replacement_date[[color]], yaxis="y4", plot=p, dataset=dataset)
   #p <- makePlotForSerial(serial, "PMCount.X7956_142_Estimated.Remain.Days.Waste.Toner.Bottle.SP7.956.142.Read.Only", yaxis="y4", plot=p, dataset=dataset)
   #p <- makePlotForSerial(serial, "PMCount.X7950_142_Unit.Replacement.Date.Waste.Toner.Bottle.SP7.950.142.Read.Only", yaxis="y4", plot=p, dataset=dataset)
   p <- makePlotForSerial(serial, developer_rotation[[color]], yaxis="y4", plot=p, dataset=dataset)
   p <- makePlotForSerial(serial, toner[[color]], yaxis="y5", plot=p, dataset=dataset)
-  #p <- makePlotForSerial(serial, coverage_prev_bottle[[color]], yaxis="y3", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, coverage_prev_bottle[[color]], yaxis="y3", plot=p, dataset=dataset)
+  for (x in p1) {
+    p <- makePlotForSerial(serial, names(predictors)[x], yaxis=, plot=p, dataset=dataset)
+  }
   print(p)
 }
 
@@ -664,24 +666,17 @@ process_serial_df <- function(df) {
 
 serial_dfs <- split(predictors_orig, predictors_orig$Serial)
 serial_dfs <- plapply(serial_dfs, function(x) tryCatch(process_serial_df(x), error=function(e) NULL),  parallel=T)
-n_errs <- serial_dfs %>% filterBy(is.null) %>% length
+#serial_dfs <- plapply(serial_dfs, process_serial_df,  parallel=T)
+n_errs <- serial_dfs %>% lapply(is.null) %>% unlist %>% which %>% length
 if(n_errs > 0) {
   print(paste("Warning, ", n_errs, " serials could not be processed"))
 }
 predictors <- bindRowsForgiving(serial_dfs)
 
 # Add location data
-locations <- withCloudFile('s3://ricoh-prediction-misc/locations.csv', read.csv)
-locations$Serial <- locations$SerialNo
-predictors %<>% join(locations, by='Serial')
-
-# Fi
-
-#tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=list(pred_eff))
-tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=pred_eff_by_serial, mode='lines', force_cmyk = T)
-tonerScatterHistForSerials(pred_eff$Serial, list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines', log_y = F)
-
-tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(2), line readings for current developer unit
+# locations <- withCloudFile('s3://ricoh-prediction-misc/locations.csv', read.csv)
+# locations$Serial <- locations$SerialNo
+# predictors %<>% join(locations, by='Serial')
 
 # Examine efficiency
 get_eff <- function(preds) {
@@ -738,12 +733,8 @@ for(i in 1:length(colors)) {
   )
 }
 
-pred_eff_by_serial <- split(pred_eff, pred_eff$Serial)st(traces[[2]]), datasets=pred_eff_by_serial, mode='lines')
-
-
+pred_eff_by_serial <- split(pred_eff, pred_eff$Serial)
 pred_eff_current_by_serial <- split(pred_eff_current, pred_eff_current$Serial)
-tonerScatterHistForSerials(pred_eff_current$Serial, traces, datasets=pred_eff_current_by_serial, mode='lines')
-
 
 
 print(paste("Summary of toner per coverage for:", paste(device_models)))
@@ -756,13 +747,41 @@ summary(eff_current)
 # TODO: look for correlation with customer and industry type
 
 eff_current_median <- apply(eff_current, 2, . %>% na.omit %>% median)
-eff_current_cutoff <- eff_current_median * 3
+eff_current_cutoff <- eff_current_median * 2
+eff_current_cutoff_high <- eff_current_median * 3
 candidates <- pred_eff_current
+# Filter out rows with no toner_per_coverage values
+candidates_idxs <- apply(candidates[,toner_per_coverage], 1, function(r) !(r %>% is.na %>% all))
+candidates <- candidates[candidates_idxs,] 
+# Order by date
+candidates <- candidates[order(candidates$RetrievedDate),]
 for(i in 1:length(colors)) {
   # Find values that meet the threshold
-  idx <- (candidates[,toner_per_coverage[[i]]] >= eff_current_cutoff[[i]]) %>% which
-  idx_neg <- (candidates[,toner_per_coverage[[i]]] < eff_current_cutoff[[i]]) %>% which
-  sers <- candidates[idx,]$Serial %>% unique
+  hits <- candidates[,toner_per_coverage[[i]] >= eff_current_cutoff[[i]] && !is.na(toner_per_coverage[[i]])]
+  hits_sers <- hits$Serial %>% unique
+  sers <- list()
+  ser_groups <- split(candidates, candidates$Serial)
+  # For the current dev unit to qualify, require:
+  # At least 2 full toner bottles measured
+  # At least 2 of the last 2/3 toner bottles above the general cutoff threshold
+  # Latest bottle above the high cutoff threshold
+  for(ser_group in ser_groups) {
+    ser <- ser_group$Serial %>% unique
+    if(!(serial %in% hits_sers)) {
+      next
+    }
+    covs <- ser_group[!is.na(ser_group[,toner_per_coverage[[i]]]),toner_per_coverage[[i]]]
+    recent_ser_hits <- (tail(covs, 3) >= eff_current_cutoff[[i]]) %>% which %>% length
+    if(length(covs) < 2) {
+      next
+    } else if(recent_ser_hits < 2) {
+      next
+    } else if(last(covs) < eff_current_cutoff_high[[i]]) {
+      next
+    } else {
+      sers %<>% append(ser)
+    }
+  }
   sers_neg <- setdiff(candidates$Serial, sers)
   candidates[candidates$Serial %in% sers_neg, toner_per_coverage[[i]]] <- NA
 }
@@ -770,13 +789,7 @@ for(i in 1:length(colors)) {
 candidates_idxs <- apply(candidates[,toner_per_coverage], 1, function(r) !(r %>% is.na %>% all))
 candidates <- candidates[candidates_idxs,] 
 
-plotHist(candidates[,toner_per_coverage], cumulative=F)
-plotDensity(candidates[,toner_per_coverage])
-
 candidates_by_serial <- split(candidates, candidates$Serial)
-tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=T, force_cmyk = T)
-tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=F, force_cmyk = T)
-
 
 for(i in 1:length(colors)) {
   cat(paste("Outlying serials for", colors[[i]]))
@@ -790,6 +803,41 @@ for(i in 1:length(colors)) {
 by_s <- pred_eff %>% group_by(Serial)
 by_s[,append(c('Serial'), toner_per_coverage)] %>% dplyr::summarise_all(funs(mean(., na.rm=T), sd(., na.rm=T)))
 
+tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=T, force_cmyk = T)
+
+################################################################################
+# Ad-hoc analysis
+################################################################################
+
+
+plotHist(candidates[,toner_per_coverage], cumulative=F)
+plotDensity(candidates[,toner_per_coverage])
+
+plotDensity(pred_eff[,toner_per_coverage])
+
+tonerScatterHistForSerials(pred_eff_current$Serial, traces, datasets=pred_eff_current_by_serial, mode='lines')
+
+tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=F, force_cmyk = T)
+
+#tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=list(pred_eff))
+#tonerScatterHistForSerials(pred_eff$Serial, traces, datasets=pred_eff_by_serial, mode='lines', force_cmyk = T)
+#tonerScatterHistForSerials(pred_eff$Serial, list(traces[[2]]), datasets=pred_eff_by_serial, mode='lines', log_y = F)
+
+#tonerScatterHistForSerials(unique(pred_eff$Serial) %>% sample %>% head(2)
+
+tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=T, force_cmyk = T)
+tonerScatterHistForSerials(candidates$Serial, traces, datasets=candidates_by_serial, mode='line', log_y=F, force_cmyk = T)
+
+
+by_ser <- group_by(predictors[predictors$Serial %in% candidates$Serial,], Serial) %>% dplyr::summarize(
+  machines=length(unique(Serial)),
+  pages = sum(!!sym(pages_delta), na.rm=T),
+  cov = sum(!!sym(coverage_delta[[i]]), na.rm=T),
+  bottles=sum(!!sym(toner_replaced[[i]]), na.rm=T),
+  toner.per.cov=mean(!!sym(toner_per_coverage[[i]]), na.rm=T)
+)
+by_ser %>% View
+
 
 #tonerForSerial(serials[[5]])
 #tonerForSerial("E163M450041")
@@ -798,7 +846,7 @@ by_s[,append(c('Serial'), toner_per_coverage)] %>% dplyr::summarise_all(funs(mea
 #tonerForSerial("E163MA50192", 2)
 
 #tonerForSerialMinimal("G756R840065")
-# 
+#
 tonerForSerialMinimal("E175M950201", 2)
 tonerForSerialMinimal("E175M950223", 2)
 tonerForSerialMinimal("E175M950227", 2)
@@ -902,3 +950,5 @@ by_ser <- group_by(predictors[predictors$Serial %in% candidates$Serial,], Serial
     toner.per.color=mean(!!sym(toner_per_coverage[[i]]), na.rm=T)
 )
 by_ser %>% View
+
+tonerForSerial("E164M450141", 2)
