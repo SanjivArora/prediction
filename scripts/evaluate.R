@@ -40,7 +40,7 @@ serial_to_codes <- makeSerialToCodes(codes)
 # Find number of days until code occurring
 ################################################################################
 
-matching <- getMatchingCodeSets(preds, serial_to_codes, date_field=date_field, sc_code_days=.Machine$integer.max, parallel=FALSE)
+matching <- getMatchingCodeSets(preds, serial_to_codes, date_field=date_field, label_days=.Machine$integer.max, parallel=FALSE)
 preds$all <- matching
 
 code_dates <- list()

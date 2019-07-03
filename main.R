@@ -46,30 +46,10 @@ if(selected_features) {
 }
 
 ################################################################################
-# SC & Jam Codes
-################################################################################
-
-service_codes <- readCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
-serial_to_service_codes <- makeSerialToCodes(service_codes)
-
-
-jams <- readJamCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
-serial_to_jams <- makeSerialToCodes(jams)
-
-serials <- append(service_codes$Serial, jams$Serial) %>% unique
-serial_to_codes <- hash()
-for (serial in serials){
-  a <- getWithDefault(serial_to_service_codes, serial, list())
-  b <- getWithDefault(serial_to_jams, serial, list())
-  cs <- append(a, b)
-  serial_to_codes[[serial]] <- cs
-}
-
-################################################################################
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=data_days, end_date=end_date)
+file_sets <- getEligibleFileSets(regions, device_models, sources, label_days, days=data_days, end_date=end_date)
 
 data_files <- unlist(file_sets)
 
@@ -77,7 +57,7 @@ predictors_all <- dataFilesToDataset(
   data_files,
   sources,
   sample_rate,
-  sc_code_days,
+  label_days,
   delta_days=delta_days,
   deltas=deltas,
   only_deltas=only_deltas,
@@ -93,6 +73,62 @@ predictors <- cleanPredictors(predictors_all, randomize_order=randomize_predicto
 
 # Stats for dataset
 print(paste(nrow(predictors), "total observations"))
+
+################################################################################
+# Part replacements
+################################################################################
+
+by_ser <- group_by(predictors, Serial)
+by_ser %<>% arrange(desc(RetrievedDateTime))
+
+replacement_idxs <- grep('.*Replacement\\.Date.*(?<!relative)$', predictors %>% names(), perl=TRUE)
+replacement_fields <- names(predictors)[replacement_idxs]
+replacement_matches <- str_match_all(replacement_fields, '.*Unit\\.Replacement\\.Date\\.(.*)\\.SP7.*')
+replacement_part_names <- lapply(replacement_matches, function(x) x[[2]])
+
+replacement_codes <- data.frame()
+
+for(i in 1:length(replacement_fields)) {
+  new = sym(paste(replacement_part_names[[i]], ".replaced", sep=""))
+  field = sym(replacement_fields[[i]])
+  by_ser %<>% mutate(!!new := (!!field != lag(!!field)) & !is.na(lag(!!field)) &!is.na(!!field))
+  by_ser %<>% mutate(!!new := ifelse(is.na(!!new), FALSE, !!new))
+  # Add replacement pseudo-codes
+  hits <- by_ser[which(by_ser[,as_string(new)] == TRUE),]
+  if(length(hits$Serial) > 0) {
+    # OCCUR_DATE is when we pick up the change, not the registered installation date of the part
+    replacement_codes %<>% rbind(data.frame(Serial=hits$Serial, PART_NAME=replacement_part_names[[i]], OCCUR_DATE=hits$GetDate))
+  }
+}
+
+serial_to_replacements <- makeSerialToCodes(replacement_codes)
+
+# Merge back to original predictors to preserve ordering
+predictors <- merge(x = predictors, y = by_ser, by = names(predictors))
+
+################################################################################
+# Service and Jam Codes
+################################################################################
+
+service_codes <- readCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
+serial_to_service_codes <- makeSerialToCodes(service_codes)
+
+jams <- readJamCodes(regions, device_models, target_codes, days=data_days, end_date=end_date, parallel=parallel)
+serial_to_jams <- makeSerialToCodes(jams)
+
+################################################################################
+# Built list of codes, and replacements which we treat as codes
+################################################################################
+
+serials <- append(service_codes$Serial, jams$Serial) %>% append(replacement_codes$serial) %>% unique
+serial_to_codes <- hash()
+for (serial in serials){
+  a <- getWithDefault(serial_to_service_codes, serial, list())
+  b <- getWithDefault(serial_to_jams, serial, list())
+  c <- getWithDefault(serial_to_replacements, serial, list())
+  cs <- append(a, b) %>% append(c)
+  serial_to_codes[[serial]] <- cs
+}
 
 ###############################################################################
 # Build list of matching code sets for each row
@@ -123,7 +159,7 @@ predictors_eligible <- filterIneligibleFields(predictors, string_factors=factor_
 ################################################################################
 
 split_type <- "timeSplit"
-splits <- splitPredictors(predictors, split_type, frac=training_frac, sc_code_days=sc_code_days, date_field=date_field)
+splits <- splitPredictors(predictors, split_type, frac=training_frac, label_days=label_days, date_field=date_field)
 train_vector <- splits[['train']]
 test_vector <- splits[['test']]
 
@@ -138,8 +174,9 @@ matching_code_sets_unique_jams <- lapply(matching_code_sets_unique_train, functi
 used_labels_service <- selectLabels(predictors[train_vector,], matching_code_sets_unique_service, n=max_models)
 #used_labels_jams <- selectLabels(predictors[train_vector,], matching_code_sets_unique_jams, n=max_models)
 used_labels_jams <- list()
+used_labels_replacements <- replacement_part_names
 
-used_labels <- append(used_labels_service, used_labels_jams)
+used_labels <- append(used_labels_service, used_labels_jams) %>% append(used_labels_replacements)
 
 ################################################################################
 # Generate responses

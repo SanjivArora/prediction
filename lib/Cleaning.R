@@ -64,7 +64,7 @@ standardizeDates <- function(predictors) {
   return(predictors)
 }
 
-# Convert replacement dates to relative values
+# Convert replacement dates to relative values and add these as new columns ending with ".replaced"
 relativeReplacementDates <- function(predictors) {
   clean_log$debug("Making replacement dates relative")
   replacement_date_col_names <- colnames(predictors)
@@ -74,8 +74,8 @@ relativeReplacementDates <- function(predictors) {
     return(predictors)
   }
   
-  date_cols <- as.numeric(predictors$RetrievedDate) - as.numeric(predictors[,date_field])
-  predictors[,replacement_date_cols] <- date_cols
+  date_cols <- predictors$RetrievedDate - predictors[,date_field]
+  predictors[,paste(replacement_date_cols, '.relative', sep='')] <- date_cols
   return(predictors)
 }
 

@@ -8,6 +8,10 @@ isJamCode <- function(c){
   "PAPER_JAM_CD" %in% names(c) & "PAPER_SIZE_CD" %in% names(c)
 }
 
+isReplacement <- function(c) {
+  "PART_NAME" %in% names(c)
+}
+
 codeToLabel <- function(c) {
   if(isServiceCode(c)){
     label <- paste(c$SC_CD, c$SC_SERIAL_CD, sep='_')
@@ -18,6 +22,8 @@ codeToLabel <- function(c) {
     label <- paste("J", c$PAPER_JAM_CD, sep='')
     # Make this an R-compliant name
     label <- make.names(label)
+  } else if(isReplacement(c)){
+    label <- make.names(c$PART_NAME)
   } else{
     stop("Cannot recognise code type")
   }

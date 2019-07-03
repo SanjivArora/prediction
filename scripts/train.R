@@ -52,7 +52,7 @@ serial_to_jams <- makeSerialToCodes(jams)
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=data_days, end_date=end_date)
+file_sets <- getEligibleFileSets(regions, device_models, sources, label_days, days=data_days, end_date=end_date)
 if(!is.na(data_days)) {
   file_sets <- tail(file_sets, data_days)
 }
@@ -64,7 +64,7 @@ predictors_all <- dataFilesToDataset(
   data_files,
   sources,
   sample_rate,
-  sc_code_days,
+  label_days,
   delta_days=delta_days,
   deltas=deltas,
   only_deltas=only_deltas,

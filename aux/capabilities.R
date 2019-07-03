@@ -16,7 +16,7 @@ require(tibble)
 
 # For toner analysis:
 data_days <- 365
-sc_code_days <- 0
+label_days <- 0
 sc_data_buffer <- 0
 randomize_predictor_order <- FALSE
 
@@ -40,7 +40,7 @@ dfs <- plapply(
       data_files,
       sources,
       sample_rate,
-      sc_code_days,
+      label_days,
       delta_days=delta_days,
       deltas=deltas,
       only_deltas=only_deltas,

@@ -35,16 +35,16 @@ split_fs <- hash(
 )
 
 # Provide vectors for selecting train and test sets from predictors. Return a list with named 'test' and 'train' logical vectors.
-splitPredictors <- function(predictors, split_type, frac=default_frac, sc_code_days=14, date_field="GetDate") {
+splitPredictors <- function(predictors, split_type, frac=default_frac, label_days=14, date_field="GetDate") {
   
   split_vector <- split_fs[[split_type]](predictors, frac=frac)
   
   train_vector <- split_vector
   test_vector <- !split_vector
-  # If splitting on time, drop sc_code_days worth of data before split so we don't count cases where there is overlap.
+  # If splitting on time, drop label_days worth of data before split so we don't count cases where there is overlap.
   if(split_type == "timeSplit") {
     # Drop an additional period to allow for non-exact windows
-    total_days_to_drop <- sc_code_days + 4
+    total_days_to_drop <- label_days + 4
     print(paste("Dropping", total_days_to_drop, "days of training data to prevent SC code window overlapping with test set"))
     predictor_dates <- as.Date(predictors[,date_field])
     train_dates <- predictor_dates[train_vector]

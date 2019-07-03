@@ -19,8 +19,8 @@ sample_rate <- 1
 # Build models for up to this many <SC>_<subcode> pairs
 max_models <- 15
 
-# Maximum number of days to predict SC code
-sc_code_days <- 14
+# Maximum number of days to look ahead when generating labels
+label_days <- 14
 
 # Offsets to use for generating deltas for numerical data
 delta_days <- c(14)

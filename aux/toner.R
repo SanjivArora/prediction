@@ -27,13 +27,13 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("E19")
+device_models <- c("E17")
 #device_models <- c("G75")
 #device_models <- c("V24")
 
 # For toner analysis:
 data_days <- 365
-sc_code_days <- 0
+label_days <- 0
 sc_data_buffer <- 0
 randomize_predictor_order <- FALSE
 
@@ -51,14 +51,14 @@ if(selected_features) {
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, sc_code_days, days=data_days, end_date=end_date)
+file_sets <- getEligibleFileSets(regions, device_models, sources, label_days, days=data_days, end_date=end_date)
 data_files <- unlist(file_sets)
 
 predictors_all <- dataFilesToDataset(
   data_files,
   sources,
   sample_rate,
-  sc_code_days,
+  label_days,
   delta_days=delta_days,
   deltas=FALSE,
   only_deltas=only_deltas,
@@ -124,6 +124,7 @@ field <- "PMCount.X7931_11_Toner.Bottle.Bk.Serial.No.SP7.931.011"
 # grep('.*Fusing.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 # grep('.*\\.V.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 # grep('.*Sens.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
+# grep('.*Replace.*', predictors %>% names()) -> p1; names(predictors)[p1] %>% print
 
 
 #predictors[,p1] %>% View
@@ -376,6 +377,39 @@ tonerForSerial <- function(serial, color=1, dataset=NA) {
   for (x in p1) {
     p <- makePlotForSerial(serial, names(predictors)[x], yaxis=, plot=p, dataset=dataset)
   }
+  print(p)
+}
+
+
+sensorsForSerial <- function(serial, color=1, dataset=NA) {
+  if(identical(dataset, NA)) dataset <- predictors
+  p <- plot_ly(width=1400, height=1000)
+  p %<>% layout(
+    title=paste("Toner:", serial),
+    #legend = list(x = 100, y = 50),
+    #yaxis=list(title="Pages"),
+    #yaxis2=list(title="Toner%", overlaying="y", side="right", range=c(0,100)),
+    yaxis=list(rangemod='nonnegative'),
+    yaxis2=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis3=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis4=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis5=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis6=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis7=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis8=list(overlaying="y", side="right", rangemode='nonnegative'),
+    yaxis9=list(overlaying="y", side="right", rangemode='nonnegative')
+  )
+  p <- makePlotForSerial(serial, coverage[[color]], yaxis="y", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, toner_per_coverage[[color]], yaxis="y2", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, vtref[[color]], yaxis="y3", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, td_sens[[color]], yaxis="y3", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, "PMCount.X3330_11_ID.Sens.Coef.Disp.K5.Latest.Front.SP3.330.011.Read.Only", yaxis="y4", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, "PMCount.X3312_13_ID.Sens.Vct.Vct_dif.Rear.SP3.312.013.Read.Only", yaxis="y5", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, "PMCount.X3312_11_ID.Sens.Vct.Vct_dif.Front.SP3.312.011.Read.Only", yaxis="y5", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, toner[[color]], yaxis="y6", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, "PMCount.X3210_4_TD.Sens.Vt.Disp.Current.Y.SP3.210.004.Read.Only", yaxis="y7", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, "PMCount.X3312_1_ID.Sens.Vct.Vct_reg.Front.SP3.312.001.Read.Only", yaxis="y8", plot=p, dataset=dataset)
+  p <- makePlotForSerial(serial, developer_replacement_date[[color]], yaxis="y9", plot=p, dataset=dataset)
   print(p)
 }
 
@@ -951,4 +985,42 @@ by_ser <- group_by(predictors[predictors$Serial %in% candidates$Serial,], Serial
 )
 by_ser %>% View
 
-tonerForSerial("E164M450141", 2)
+# False positive - high usage fixed in maintenance w/out dev replacement
+sensorsForSerial("E164M450141", 2)
+
+# Not replaced as of July 2019, active
+sensorsForSerial("E163M650231", 2)
+
+# Not replaced as of July 2019, active
+sensorsForSerial("E163M750100", 2)
+
+# Not replaced as of July 2019, active
+sensorsForSerial("E163M950258", 2)
+
+# Replaced May 2019, success
+sensorsForSerial("E164M850231", 2)
+
+# Replaced Jan 2019 (BAU, not targeted)
+sensorsForSerial("E163M750071", 2)
+
+# Extremely revealing - targeted Y dev unit replacement end of march, fixes toner usage, vtref/vt plummets and keeps dropping without any apparent effect on toner usage, then image transfer belt replaced and all returns to normal.
+# Interpretation: vrtref/vt dropping to compensate for bad belt, drop faster when dev unit is good as bad dev unit provides more effective toner density (and a huge amount of wastage)
+sensorsForSerial("E174MA50190", 3)
+
+# Targeted K replacement - vtref/vt jumps up from steady descent
+sensorsForSerial("E174M850332", 1)
+
+# Targeted Y replacement in April, fixes toner usage, dropping vtref/vt as of july (presumed belt issue)
+sensorsForSerial("E173M550178", 2)
+
+# Target Y replacment in April, fixes toner usage
+sensorsForSerial("E174M250271", 2)
+
+# Targeted Y replacement in April, dramatic improvement in toner efficiency, vtref/vt return to normal with later itb replacement
+sensorsForSerial("E174MA50193", 2)
+
+
+sensorsForSerial("E175M950047", 2)
+sensorsForSerial("E174M850332", 1)
+sensorsForSerial("E174M850332", 1)
+sensorsForSerial("E174M850332", 1)
