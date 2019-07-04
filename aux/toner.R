@@ -51,7 +51,7 @@ if(selected_features) {
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, label_days, days=data_days, end_date=end_date)
+file_sets <- getEligibleFileSets(regions, device_models, sources, days=data_days, end_date=end_date)
 data_files <- unlist(file_sets)
 
 predictors_all <- dataFilesToDataset(

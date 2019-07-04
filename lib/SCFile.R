@@ -6,7 +6,7 @@ source('lib/DataFile.R')
     "SCFile",
     contains = "DataFile",
     methods = list(
-      # Get a data frame of all non-N/A SC codes
+      # Get a data frame of all non-N/A service codes
       getDataFrame = function() {
         raw <- callSuper(prepend_source=FALSE)
         parts <- list()

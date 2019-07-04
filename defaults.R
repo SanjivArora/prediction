@@ -110,4 +110,4 @@ default_device_group <- "trial_prod"
 
 replace_nas <- TRUE
 
-randomize_predictor_order <- TRUE
+randomize_predictor_order <- FALSE

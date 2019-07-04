@@ -52,7 +52,7 @@ serial_to_jams <- makeSerialToCodes(jams)
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, label_days, days=data_days, end_date=end_date)
+file_sets <- getEligibleFileSets(regions, device_models, sources, days=data_days, end_date=end_date)
 if(!is.na(data_days)) {
   file_sets <- tail(file_sets, data_days)
 }
@@ -118,7 +118,7 @@ predictors_eligible <- filterIneligibleFields(predictors, string_factors=factor_
 
 responses <- generateResponses(matching_code_sets_unique, used_labels)
 
-print("Observation counts for SC codes:")
+print("Observation counts for codes:")
 print(responsesToCounts(responses))
 
 ################################################################################

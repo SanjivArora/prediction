@@ -66,16 +66,17 @@ standardizeDates <- function(predictors) {
 
 # Convert replacement dates to relative values and add these as new columns ending with ".replaced"
 relativeReplacementDates <- function(predictors) {
-  clean_log$debug("Making replacement dates relative")
-  replacement_date_col_names <- colnames(predictors)
-  replacement_date_cols <- replacement_date_col_names[grep('X.*replacement\\.date', replacement_date_col_names, ignore.case=T)]
+  clean_log$debug("Adding relative replacement dates")
+  replacement_date_cols <- colnames(predictors)[grep('X.*replacement\\.date\\..*\\.read\\.only$', colnames(predictors), ignore.case=T)]
+  replacement_date_cols_new <- paste(replacement_date_cols, '.relative', sep='')
   
   if(length(replacement_date_cols)==0) {
     return(predictors)
   }
   
-  date_cols <- predictors$RetrievedDate - predictors[,date_field]
-  predictors[,paste(replacement_date_cols, '.relative', sep='')] <- date_cols
+  for (i in 1:length(replacement_date_cols)) {
+    predictors[,replacement_date_cols_new[[i]]] <- (predictors$RetrievedDate - predictors[,replacement_date_cols[[i]]]) %>% as.numeric
+  }
   return(predictors)
 }
 
@@ -157,6 +158,8 @@ processRomVer <- function(predictors) {
 cleanPredictors <- function(predictors, randomize_order=randomize_predictor_order, relative_replacement_dates=TRUE) {
   if(randomize_order) {
     predictors %<>% randomizeOrder
+  } else {
+    predictors %<>% arrange(RetrievedDateTime)
   }
   predictors %<>% filterDesynced
   predictors %<>% filterDuplicates

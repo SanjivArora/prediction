@@ -49,17 +49,17 @@ InstanceCounter <- setRefClass(
     ###################
     # Private variables
     ###################
-    # Hash mapping serial to SC code rows
+    # Hash mapping serial to code rows
     serial_to_codes = "hash",
     # Look ahead 0-n days to check for code
     sc_days = "numeric",
-    # Minimum number of SC code instance days for code to register
+    # Minimum number of code instance days for code to register
     min_count = "numeric",
     # Target total sample count (approximate)
     n_target_total = "numeric",
     # Target fraction of positive observations if upsampling is enabled (approximate, for sampling)
     n_target_positive_fraction = "numeric",
-    # Hash mapping code number to count. "0" is a special key for control case instances (i.e. no SC codes).
+    # Hash mapping code number to count. "0" is a special key for control case instances (i.e. no codes).
     counts = "hash",
     # Total number of predictor rows
     n_total = "numeric",
@@ -114,8 +114,8 @@ InstanceCounter <- setRefClass(
     getTotal = function() .self$n_total,
     getNegative = function() .self$negative,
     setMinCount = function(x) .self$min_count <- x,
-    # Get sampling frequencies for SC codes such that we have approximately equal representation for each code.
-    # Return a hash mapping SC code to frequency
+    # Get sampling frequencies for codes such that we have approximately equal representation for each code.
+    # Return a hash mapping code to frequency
     # This ignores interactions between codes, so the frequency will be overestimated if observations have multiple codes.
     # As codes are expected to have low base rates this is usually fine for the intended use and allows a simple implementation.
     getSamplingFrequencies = function(disable_sampling_cap=FALSE) {
@@ -288,12 +288,12 @@ dataFilesToCounter <- function(data_files,
   dropped_counts <- subtractHash(counter$getCounts(), counter$getEligibleCounts())
   if(length(dropped_counts) > 0) {
     sampling_log$info(
-      paste(length(dropped_counts), "counts for SC codes under the eligibility threshold of", counter$min_count, "instances")
+      paste(length(dropped_counts), "counts for codes under the eligibility threshold of", counter$min_count, "instances")
     )
   }
   # Always one control count
   if(length(counter$getEligibleCounts()) == 1) {
-    sampling_log$warn("No eligible counts for SC codes")
+    sampling_log$warn("No eligible counts for codes")
   }
   if(counter$getControlCount()==0) {
     sampling_log$warn("No control case instances")
@@ -364,7 +364,7 @@ augmentWithDeltas <- function(df, date, previous, delta_days, only_deltas=FALSE)
 
 # Sample dataframe to 100% coverage before taking duplicates. Augment data with deltas to previous days for numeric values.
 sampleDataFrame <- function(df, date, sample_rate, daily_file_sets, delta_days=c(1,3,7), deltas=TRUE, only_deltas=TRUE) {
-  # TODO: currently if a serial has multiple SC codes, we sample independently for each code.
+  # TODO: currently if a serial has multiple codes, we sample independently for each code.
   # Combined sampling or adjusting frequencies to drop overlapped samples would improve efficiency and class balance.
   sampling_log$debug(paste("Sampling dataset for", date))
   n <- nrow(df) * sample_rate

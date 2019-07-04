@@ -256,12 +256,12 @@ instancesForBucket <- function(bucket=default_bucket, days=90, end_date=NA, regi
   return(res)
 }
 
-getEligibleModelDataFiles <- function(region, model, sources, label_days=14, sc_data_buffer=4, days=NA, end_date=NA, all_files=NA) {
+getEligibleModelDataFiles <- function(region, model, sources, days=NA, end_date=NA, all_files=NA) {
   # Don't use is.na here as it generates a warning message when used with a vector
   if(identical(all_files, NA)) {
     all_files <- instancesForBucket(regions=c(region), models=c(model), sources=sources, days=days, end_date=end_date)
   }
-  # Restrict data set to days for which we have current SC code data, and a maximum of data_days
+  # Restrict data set to days for which we have current SC data, and a maximum of data_days
   sc_files <- filterBy(all_files, function(f) f$source=="SC" && f$region==region && f$model==model)
   sc_files <- sortBy(sc_files, function(f) f$date)
   if(length(sc_files)==0) {
@@ -269,8 +269,7 @@ getEligibleModelDataFiles <- function(region, model, sources, label_days=14, sc_
   }
   latest <- last(sortBy(sc_files, function(f) f$date))
   latest_sc_file_date <- as.Date(latest$date)
-  # Wait an additional period for SC data to be up to date for a machine, the lag can be a few days.
-  latest_data_file_date <- latest_sc_file_date - label_days - sc_data_buffer
+  latest_data_file_date <- latest_sc_file_date
   filtered_data_files <- filterBy(
     all_files,
     function(f) {

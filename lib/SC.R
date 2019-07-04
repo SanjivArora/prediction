@@ -10,7 +10,7 @@ readCodes <- function(regions=NA, models=NA, target_codes=list(1:999), days=NA, 
   # Remote duplicate code instances
   code_dups <- duplicated(codes_all[,c('Serial', 'SC_CD', 'SC_SERIAL_CD', 'OCCUR_DATE')])
   codes_unique <- codes_all[!code_dups,]
-  # Filter SC codes to target codes
+  # Filter to target codes
   code_indices <- plapply(splitDataFrame(codes_unique), function(c) has.key(c$SC_CD, target_code_hash))
   codes <- codes_unique[unlist(code_indices),]
 }

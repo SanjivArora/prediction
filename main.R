@@ -33,7 +33,7 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-#device_models <- c("E18")
+#device_models <- c("E19")
 
 ################################################################################
 # Feature Names
@@ -49,7 +49,7 @@ if(selected_features) {
 # Sample dataset
 ################################################################################
 
-file_sets <- getEligibleFileSets(regions, device_models, sources, label_days, days=data_days, end_date=end_date)
+file_sets <- getEligibleFileSets(regions, device_models, sources, days=data_days, end_date=end_date)
 
 data_files <- unlist(file_sets)
 
@@ -79,32 +79,40 @@ print(paste(nrow(predictors), "total observations"))
 ################################################################################
 
 by_ser <- group_by(predictors, Serial)
-by_ser %<>% arrange(desc(RetrievedDateTime))
+by_ser %<>% arrange(desc(RetrievedDate), .by_group=TRUE)
 
 replacement_idxs <- grep('.*Replacement\\.Date.*(?<!relative)$', predictors %>% names(), perl=TRUE)
 replacement_fields <- names(predictors)[replacement_idxs]
+replacement_fields_new <- paste(replacement_fields, '.replaced', sep="")
 replacement_matches <- str_match_all(replacement_fields, '.*Unit\\.Replacement\\.Date\\.(.*)\\.SP7.*')
 replacement_part_names <- lapply(replacement_matches, function(x) x[[2]])
 
 replacement_codes <- data.frame()
 
 for(i in 1:length(replacement_fields)) {
-  new = sym(paste(replacement_part_names[[i]], ".replaced", sep=""))
   field = sym(replacement_fields[[i]])
-  by_ser %<>% mutate(!!new := (!!field != lag(!!field)) & !is.na(lag(!!field)) &!is.na(!!field))
-  by_ser %<>% mutate(!!new := ifelse(is.na(!!new), FALSE, !!new))
+  new = sym(replacement_fields_new[[i]])
+  # Compare current replacement date with the replacement date for the next oldest reading
+  by_ser %<>% mutate(!!new := (!!field != lead(!!field)) & !is.na(lead(!!field)) & !is.na(!!field))
+  #by_ser %<>% mutate(!!new := ifelse(is.na(!!new), FALSE, !!new))
   # Add replacement pseudo-codes
   hits <- by_ser[which(by_ser[,as_string(new)] == TRUE),]
   if(length(hits$Serial) > 0) {
-    # OCCUR_DATE is when we pick up the change, not the registered installation date of the part
-    replacement_codes %<>% rbind(data.frame(Serial=hits$Serial, PART_NAME=replacement_part_names[[i]], OCCUR_DATE=hits$GetDate))
+    # OCCUR_DATE is when we pick up the change, REPLACED_DATE is the registered installation date of the part
+    replacement_codes %<>% rbind(data.frame(
+      Serial=hits$Serial,
+      PART_NAME=replacement_part_names[[i]],
+      OCCUR_DATE=hits$RetrievedDate,
+      REPLACED_DATE=unname(hits[,as_string(field)])
+    ))
   }
 }
+replacement_codes$DELTA <- replacement_codes$OCCUR_DATE - replacement_codes$REPLACED_DATE
 
 serial_to_replacements <- makeSerialToCodes(replacement_codes)
 
-# Merge back to original predictors to preserve ordering
-predictors <- merge(x = predictors, y = by_ser, by = names(predictors))
+# Merge back to original predictors, preserving ordering
+#predictors <- merge(x = predictors, y = by_ser, by = names(predictors))
 
 ################################################################################
 # Service and Jam Codes
@@ -117,7 +125,7 @@ jams <- readJamCodes(regions, device_models, target_codes, days=data_days, end_d
 serial_to_jams <- makeSerialToCodes(jams)
 
 ################################################################################
-# Built list of codes, and replacements which we treat as codes
+# Built list of codes and replacement pseudocodes
 ################################################################################
 
 serials <- append(service_codes$Serial, jams$Serial) %>% append(replacement_codes$serial) %>% unique
@@ -172,9 +180,10 @@ matching_code_sets_unique_service <- lapply(matching_code_sets_unique_train, fun
 matching_code_sets_unique_jams <- lapply(matching_code_sets_unique_train, function(l) filterBy(l, isJamCode))
 
 used_labels_service <- selectLabels(predictors[train_vector,], matching_code_sets_unique_service, n=max_models)
+used_labels_service <- list()
 #used_labels_jams <- selectLabels(predictors[train_vector,], matching_code_sets_unique_jams, n=max_models)
 used_labels_jams <- list()
-used_labels_replacements <- replacement_part_names
+used_labels_replacements <- replacement_codes$PART_NAME %>% as.character %>% unique
 
 used_labels <- append(used_labels_service, used_labels_jams) %>% append(used_labels_replacements)
 
@@ -184,7 +193,7 @@ used_labels <- append(used_labels_service, used_labels_jams) %>% append(used_lab
 
 responses <- generateResponses(matching_code_sets_unique, used_labels)
 
-print("Observation counts for SC codes:")
+print("Observation counts for codes:")
 print(responsesToCounts(responses))
 
 ################################################################################
@@ -272,3 +281,11 @@ service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table(exc
 # scheduled %<>% dplyr::distinct(Serial, .keep_all=T)
 # hist(scheduled$Date, breaks=40)
 # plot_ly(type="histogram", x=scheduled$Date, nbinsx=40)
+
+
+z <- data.frame(a=c(1,1,1,2,2,2), b=1:6)
+print(z)
+z1 <- group_by(z, a)
+print(z1)
+z1 %<>% mutate(c=lead(b)-b)
+print(z1)

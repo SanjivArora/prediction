@@ -58,7 +58,7 @@ used_labels <- names(models)
 # Determine date range
 ################################################################################
 
-all_data_file_sets <- getEligibleFileSets(regions, device_models, sources, label_days=0, sc_data_buffer=0)
+all_data_file_sets <- getEligibleFileSets(regions, device_models, sources)
 all_valid_data_files <- unlist(all_data_file_sets)
 latest_valid_data_file <- sortBy(all_valid_data_files, function(f) f$date, desc=TRUE)[[1]]
 
@@ -80,8 +80,7 @@ serial_to_jams <- makeSerialToCodes(jams)
 # Sample dataset
 ################################################################################
 
-# Get files, set label_days to 0 since we are predicting service codes and therefore don't want to wait for SC data to be available
-file_sets <- getEligibleFileSets(regions, device_models, sources, days=1, end_date=end_date, label_days=0, sc_data_buffer=0)
+file_sets <- getEligibleFileSets(regions, device_models, sources, days=1, end_date=end_date)
 
 data_files <- unlist(file_sets)
 
