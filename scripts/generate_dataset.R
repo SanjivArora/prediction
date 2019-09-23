@@ -30,9 +30,9 @@ models <- NA
 # Functions
 ################################################################################
 
-getData <- function(days, ...) {
+getData <- function(days, cores, ...) {
   dates <-  Sys.Date() - lubridate::days(0:days-1)
-  parts <- plapply(dates, function(date) getDataForDate(date, ...), parallel=parallel)
+  parts <- plapply(dates, function(date) getDataForDate(date, ...), parallel=parallel, ncores=cores)
   parts %<>% filterNA
   if(length(parts)==0) {
     return(NA)
@@ -126,6 +126,24 @@ getModels <- function() {
   return(models)
 }
 
+processModel <- function(region, model, cores) {
+  tryCatch({
+    print(paste("Getting predictors for", model, "in", region))
+    res <- getData(days, cores, region, model, sources)
+    if(identical(res, NA)) {
+      print(paste("No days of complete data for", model))
+      next
+    }
+    nser <- res$Serial %>% unique %>% length
+    print(paste("Gathered", print(ncol(res)), "columns and", print(nrow(res)), "rows for", nser, "machines"))
+    print(paste("Writing predictors for", model, "in", region))
+    writeDF(res, Sys.Date(), model, region)
+  }, error=function(e) {
+    print(paste("Encountered error processing model", model, "in", region))
+    print(e) 
+  })
+}
+
 ################################################################################
 # Main
 ################################################################################
@@ -134,24 +152,15 @@ if(identical(models, NA)) {
   models <- getModels()
 }
 
+simultaneous_models <- (max(1, detectCores() / 8))
+cores_per_model <- max(1, detectCores() / simultaneous_models)
 for(region in regions) {
-  for(model in models) {
-    tryCatch({
-      print(paste("Getting predictors for", model, "in", region))
-      res <- getData(days, region, model, sources)
-      if(identical(res, NA)) {
-        print(paste("No days of complete data for", model))
-        next
-      }
-      nser <- res$Serial %>% unique %>% length
-      print(paste("Gathered", print(ncol(res)), "columns and", print(nrow(res)), "rows for", nser, "machines"))
-      print(paste("Writing predictors for", model, "in", region))
-      writeDF(res, Sys.Date(), model, region)
-    }, error=function(e) {
-      print(paste("Encountered error processing model", model, "in", region))
-      print(e) 
-    })
-  }
+    plapply(
+        models,
+        function(model) processModel(region, model, cores_per_model),
+        parallel=parallel,
+        ncores=simultaneous_models
+    )
 }
 
 #hist(res$timeDiff %>% as.integer, breaks=300)
