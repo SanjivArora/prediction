@@ -3,6 +3,7 @@ source("common.R")
 require(magrittr)
 require(feather)
 require(purrr)
+require(Xmisc)
 
 ################################################################################
 # Config
@@ -12,10 +13,12 @@ input_bucket <- 'ricoh-prediction-data-test2'
 output_bucket <- 'ricoh-prediction-data-aligned'
 
 parallel <- TRUE
-days <- 1000
+# Overwritten to incremental_days if --incremental is true
 #days <- 30
+days <- 1000
+incremental_days <- 14
 
-margin_days <- 7
+margin_days <- 2
 
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count', 'RomVer')
@@ -23,6 +26,7 @@ sources <- c('PMCount', 'Count', 'RomVer')
 #models <- c('E16', 'E15', 'C08') 
 #models <- c('E15')
 models <- NA
+
 ################################################################################
 # Functions
 ################################################################################
@@ -69,7 +73,7 @@ processSource <- function(src) {
 }
 
 # Return a hash mapping dates to dataframes containing rows for those dates
-processModel <- function(model, fs, region, src) {
+processModel <- function(model, fs, region, src, increm) {
   index_fields_all <- c('Serial', 'RetrievedDate', 'RetrievedTime', 'FileDate')
   index_fields <- index_fields_all[1:3]
   print(paste("Processing", length(fs), src, "data files for", model, "in", region))
@@ -100,16 +104,16 @@ processModel <- function(model, fs, region, src) {
   )
   
   # Get a complete set of dates
-  # Ignore dates from the future and dates older than <days> + <margin>
+  # Ignore dates from the future and dates older than <days> - <margin>
   timeit({
       dates <- indices$RetrievedDate %>% unique
-      dates %<>% subset(dates<= Sys.Date() && dates >= Sys.Date() - (days + margin_days))
+      dates %<>% subset(dates <= Sys.Date() & dates >= Sys.Date() - (days - margin_days))
       dates %<>% unlist %>% sort
       date_strings <- dates %>% as.character('%Y%m%d')
     },
     "getting complete set of reading dates"
   )
-  
+
   timeit(
     dfs <- plapply(
       dates,
@@ -154,8 +158,36 @@ writeDF <- function(df, date, model, region, src) {
   s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
 }
 
+
+
+getDeviceModels <- function(...) {
+  res <- device_groups[[device_group]]
+  res %<>% unlist %>% unname
+  return(res)
+}
+
+################################################################################
+# Arguments
+################################################################################
+
+makeParser <- function() {
+  parser <- ArgumentParser$new()
+  parser$add_argument(
+    '--incremental', type='logical',
+    action='store_true', default=FALSE,
+    help='Limit to 10 days of data'
+  )
+
+  return(parser)
+}
+
+
 ################################################################################
 # Process each source
 ################################################################################
 
+makeParser()
+if(incremental) {
+  days <- incremental_days
+}
 timeit(lapply(sources, processSource))
