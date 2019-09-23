@@ -13,6 +13,9 @@ require(plotly)
 
 
 data_days <- 100
+data_days <- 365
+
+label_days <- 14
 
 #sample_rate <- 1 #0.2
 sample_rate <- 1
@@ -30,10 +33,10 @@ selected_features <- FALSE
 #replace_nas=FALSE
 
 #device_models <- device_groups[["trial_prod"]]
-device_models <- device_groups[["trial_commercial"]]
-#device_models <- device_groups[["e_series_commercial"]]
+#device_models <- device_groups[["trial_commercial"]]
+device_models <- device_groups[["e_series_commercial"]]
 
-#device_models <- c("E19")
+#device_models <- c("E17")
 
 ################################################################################
 # Feature Names
@@ -180,10 +183,11 @@ matching_code_sets_unique_service <- lapply(matching_code_sets_unique_train, fun
 matching_code_sets_unique_jams <- lapply(matching_code_sets_unique_train, function(l) filterBy(l, isJamCode))
 
 used_labels_service <- selectLabels(predictors[train_vector,], matching_code_sets_unique_service, n=max_models)
-used_labels_service <- list()
+#used_labels_service <- list()
 #used_labels_jams <- selectLabels(predictors[train_vector,], matching_code_sets_unique_jams, n=max_models)
 used_labels_jams <- list()
 used_labels_replacements <- replacement_codes$PART_NAME %>% as.character %>% unique
+used_labels_replacements <- list()
 
 used_labels <- append(used_labels_service, used_labels_jams) %>% append(used_labels_replacements)
 
@@ -213,8 +217,8 @@ models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, p
 ################################################################################
 
 stats <- evaluateModelSet(models, test_data, test_responses, parallel=T)
-# candidate_stats <- getCandidateModelStats(stats)
-# evaluateModelSet(models[candidate_stats$label], test_data, test_responses)
+g#candidate_stats <- getCandidateModelStats(stats)
+#evaluateModelSet(models[candidate_stats$label], test_data, test_responses)
 
 for(label in keys(models)) {
   cat("\n\n")

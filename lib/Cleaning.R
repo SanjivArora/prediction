@@ -126,15 +126,18 @@ filterIneligibleFields <- function(predictors, string_factors=c("Model"), exclud
 }
 
 verToInt <- function(ver) {
-  x <- gsub('[^0-9]', '.', ver, perl=TRUE)
-  parts <- strsplit(x, '\\.')[[1]]
+  # Remove characters that aren't numeric or separators
+  x <- gsub('[^0-9:.]', '', ver, perl=TRUE)
+  parts <- strsplit(x, '[.:]')[[1]]
   parts <- lapply(parts, function(x) sub('', '0', x))
   parts <- lapply(parts, as.integer)
   # If there are fewer than three parts in the firmrware version, append zeroes
   if(length(parts) < 3) {
     parts %<>% append(rep(0, 3-length(parts)))
   }
+  # Zero-pad components to three digits
   parts <- lapply(parts, function(x) formatC(x, width = 3, format = "d", flag = "0"))
+  # Interpret as integer
   s <- paste(parts, collapse='', sep='')
   res <- as.integer(s)
   return(res)
@@ -148,9 +151,11 @@ processRomVer <- function(predictors) {
   ver_idxs <- grepl('RomVer_VER_.*', names(predictors))
   ver_idxs <- which(ver_idxs)
   ver_names <- names(predictors)[ver_idxs]
+  ver_orig <- predictors[,ver_idxs]
   vers <- plapply(ver_idxs, function(i) lapply(predictors[,i], verToInt) %>% unlist)
   res <- predictors[!grepl('RomVer_.*', names(predictors))]
   res[ver_names] <- vers
+  res[,paste(ver_names, '.raw', sep='')] <- ver_orig
   return(res)
 }
 

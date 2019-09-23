@@ -27,7 +27,7 @@ selected_features <- FALSE
 device_models <- device_groups[["trial_commercial"]]
 #device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("E17")
+device_models <- c("G73")
 #device_models <- c("G75")
 #device_models <- c("V24")
 
