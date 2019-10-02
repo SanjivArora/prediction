@@ -13,7 +13,7 @@ require(plotly)
 
 
 data_days <- 100
-data_days <- 365
+data_days <- 50
 
 label_days <- 14
 
@@ -36,7 +36,8 @@ selected_features <- FALSE
 #device_models <- device_groups[["trial_commercial"]]
 device_models <- device_groups[["e_series_commercial"]]
 
-#device_models <- c("E17")
+device_models <- c("E19")
+device_models <- c("C08")
 
 ################################################################################
 # Feature Names

@@ -174,7 +174,7 @@ dataFilesToDataframe <- function(instances, features=FALSE, parallel=TRUE) {
   }
   if(!isFALSE(features)) {
     # TODO: handle deltas
-    additional <- c("Serial", "FileDate", "GetDate", "GetTime", "GetDateTime", "ChargeCounterDate", "Model")
+    additional <- c("Serial", "FileDate", "GetDate", "GetTime", "RetrievedDate", "RetrievedDateTime", "GetDateTime", "ChargeCounterDate", "Model")
     features <- append(features, additional)
     features <- intersect(colnames(res), features)
     res <- res[,unlist(features)]

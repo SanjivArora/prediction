@@ -8,7 +8,7 @@
 sources=c('PMCount', 'Count', 'RomVer') 
 
 feature_files <- c('top.txt')
-selected_features <- TRUE
+selected_features <- FALSE
 
 # Maximum number of days of predictor data files to use for training
 data_days <- 100
