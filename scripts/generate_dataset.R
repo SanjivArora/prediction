@@ -16,19 +16,30 @@ parallel <- TRUE
 days <- 1000
 #days <- 30
 
+max_past_days = 7
+max_future_days = 1
 # Maximum allowed time difference between readings, measured from first source to each subsequent source
-max_hours <- 12
+max_hours_default <- 24
+max_hours <- hash(
+  # PMCount and Count are essential for most uses and usually requires well-aligned data.
+  # RomVer is used less, and data alignment is less critical - allow use of Count + PMCount data even if matching RomVer isn't available.
+  RomVer = 24*max_past_days
+)
 
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count', 'RomVer')
 #sources <- c('PMCount')
 #models <- c('E16', 'E15', 'C08') 
-#models <- c('E16')
+#models <- c('E19')
 models <- NA
 
 ################################################################################
 # Functions
 ################################################################################
+
+maxHoursForSource <- function(source) {
+  getWithDefault(max_hours, source, max_hours_default) %>% unname %>% unlist
+}
 
 getData <- function(days, cores, ...) {
   dates <-  Sys.Date() - lubridate::days(0:days-1)
@@ -44,14 +55,15 @@ getData <- function(days, cores, ...) {
 # Match rows in the initial source with rows in subsequent sources that are as close in time as possible.
 # Check data from look_before and look_after days before and after the specified date.
 # Return NA if there is no valid data
-getDataForDate <- function(date, region, model, sources=sources, bucket=input_bucket, look_before=1, look_after=1) {
+getDataForDate <- function(date, region, model, sources=sources, bucket=input_bucket, look_after=max_future_days) {
   res <- readDF(date, region, model, sources[[1]], bucket)
   if(identical(res, NA)) {
     return(NA)
   }
   sources <- tail(sources, n=length(sources)-1)
-  dates <- date - lubridate::days(-look_before:look_after)
   for(source in sources) {
+    look_before <- ceiling(maxHoursForSource(source) / 24)
+    dates <- date - lubridate::days(-look_before:look_after)
     candidates <- readDF(dates, region, model, source, bucket)
     if(identical(candidates, NA)) {
       return(NA)
@@ -59,7 +71,7 @@ getDataForDate <- function(date, region, model, sources=sources, bucket=input_bu
     #print(nrow(res))
     #print(ncol(res))
     #print(nrow(candidates))
-    res %<>% mergeMatching(candidates)
+    res %<>% mergeMatching(candidates, maxHoursForSource(source))
     #print(nrow(res))
     #print(ncol(res))
   }
@@ -67,7 +79,7 @@ getDataForDate <- function(date, region, model, sources=sources, bucket=input_bu
   return(res)
 }
 
-mergeMatching <- function(df1, df2, hours=max_hours) {
+mergeMatching <- function(df1, df2, hours) {
   joined <- inner_join(df1, df2, by=c('Serial'))
   # set names for canonical values
   canonical_names <- c('RetrievedDate', 'RetrievedTime', 'RetrievedDateTime', 'FileDate', 'Model')
@@ -84,7 +96,7 @@ mergeMatching <- function(df1, df2, hours=max_hours) {
   # Take reading with lowest time difference
   grouped <- group_by(joined, Serial, RetrievedDate, RetrievedTime)
   res <- grouped %>% arrange(abs(timeDiff)) %>% filter(row_number() == 1) %>% ungroup
-  # Filter out results with a time difference greater than max_hours
+  # Filter out results with a time difference outside the maximum window
   res %<>% filter(abs(timeDiff) <= 3600 * hours)
   return(res)
 }
