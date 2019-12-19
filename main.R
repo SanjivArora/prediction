@@ -12,10 +12,10 @@ require(magrittr)
 require(plotly)
 
 
-data_days <- 100
-data_days <- 50
+data_days <- 120
+#data_days <- 50
 
-label_days <- 14
+label_days <- 28
 
 #sample_rate <- 1 #0.2
 sample_rate <- 1
@@ -36,7 +36,7 @@ selected_features <- FALSE
 #device_models <- device_groups[["trial_commercial"]]
 device_models <- device_groups[["e_series_commercial"]]
 
-device_models <- c("E19")
+#device_models <- c("E19")
 device_models <- c("C08")
 
 ################################################################################
@@ -218,8 +218,7 @@ models <- trainModelSet(used_labels, train_data, train_responses, ntree=ntree, p
 ################################################################################
 
 stats <- evaluateModelSet(models, test_data, test_responses, parallel=T)
-g#candidate_stats <- getCandidateModelStats(stats)
-#evaluateModelSet(models[candidate_stats$label], test_data, test_responses)
+#candidate_stats <- getCandidateModelStats(stats)
 
 for(label in keys(models)) {
   cat("\n\n")
@@ -241,8 +240,6 @@ top_features <- topModelsFeatures(models, frac=0.5)
 ################################################################################
 # Misc
 ################################################################################
-
-plotLatency(predictors_all)
 
 # Plot distribution of predictor values for different model groups
 # Get predictors with NAs
@@ -266,9 +263,9 @@ plotLatency(predictors_all)
 # weeks <- 52
 # service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial & service_codes$Serial %in% z & service_codes$OCCUR_DETAIL=='pcl',]$OCCUR_DATE %>% hist(breaks=80)
 # service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial %in% z,]$OCCUR_DATE -> dates
-service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial %in% z & service_codes$OCCUR_DETAIL=='pcl',]$OCCUR_DATE -> dates
-plot_ly(x=dates, type="histogram", nbinsx=weeks)
-service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table(exclude=0) %>% View
+#service_codes[service_codes$SC_CD %in% c(899) & service_codes$OCCUR_DATE > (up_to - weeks*7)  & service_codes$OCCUR_DATE < up_to & service_codes$Serial %in% z & service_codes$OCCUR_DETAIL=='pcl',]$OCCUR_DATE -> dates
+#plot_ly(x=dates, type="histogram", nbinsx=weeks)
+#service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table(exclude=0) %>% View
 #
 # 899 cause breakdown
 # service_codes <- readCodes()
@@ -286,11 +283,3 @@ service_codes[service_codes$SC_CD==899,c('OCCUR_DETAIL', 'SC_CD')] %>% table(exc
 # scheduled %<>% dplyr::distinct(Serial, .keep_all=T)
 # hist(scheduled$Date, breaks=40)
 # plot_ly(type="histogram", x=scheduled$Date, nbinsx=40)
-
-
-z <- data.frame(a=c(1,1,1,2,2,2), b=1:6)
-print(z)
-z1 <- group_by(z, a)
-print(z1)
-z1 %<>% mutate(c=lead(b)-b)
-print(z1)

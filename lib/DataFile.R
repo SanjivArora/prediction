@@ -8,7 +8,7 @@ source('lib/Parallel.R')
 source('lib/Feature.R')
 source('lib/Storage.R')
 
-default_bucket="ricoh-prediction-data-test2"
+default_bucket="ricoh-prediction-data"
 base_path=paste("s3://", default_bucket, sep="")
 
 timezone="UTC"

@@ -9,7 +9,7 @@ require(Xmisc)
 # Config
 ################################################################################
 
-input_bucket <- 'ricoh-prediction-data-test2'
+input_bucket <- 'ricoh-prediction-data'
 output_bucket <- 'ricoh-prediction-data-aligned'
 
 parallel <- TRUE
