@@ -128,7 +128,7 @@ writeDF <- function(df, date, model, region) {
   date_string <- date %>% as.character('%Y%m%d')
   path <- paste(date_string, region, paste(model, "feather", sep="."), sep="/")
   print(paste("Writing", path))
-  s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
+  s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket, opts=list(multipart=TRUE))
 }
 
 getModels <- function() {
