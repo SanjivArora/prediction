@@ -177,8 +177,8 @@ writeData <- function(date_to_df, model, region, src, date_to_mmr) {
         }
         print("Writing separate RAP data file")
         '%ni%' <- Negate('%in%')
-        df_rap <- df[df$Serial %ni% mmr$Device.Serial.Number,]
-        df <- df[df$Serial %in% mmr$Device.Serial.Number,]
+        df_rap <- df[df["Serial"] %ni% mmr["Device.Serial.Number"],]
+        df <- df[df["Serial"] %in% mmr["Device.Serial.Number"],]
         writeDF(df_rap, date, model, 'RAP', src)
       }
       writeDF(df, date, model, region, src)
