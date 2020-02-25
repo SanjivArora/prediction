@@ -171,26 +171,26 @@ writeData <- function(date_to_df, model, region, src, date_to_mmr) {
       # Use MMR to split out RAP MIF from RNZ - necessary hack
       if(region=='RNZ') {
         # If no MMR file is available on the given date, find a close dated version
-        deltas_to_try <- c(0, 1, -1, 2, -2, 3, -3, 4, -4, -5, -6, -7, -8, -9, -10)
+        deltas_to_try <- c(0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, -8, -9, -10, -11, -12, -13, -14)
         for (delta in deltas_to_try) {
           to_try = ymd(date)+delta
           to_try = to_try %>% as.character('%Y%m%d')
           mmr <- getWithDefault(date_to_mmr, to_try, F)
-          if (mmr != F) {
+          if (mmr!=F) {
             break
           }
         }
         if(mmr==F) {
-          print(paste("No MMR for", region, "on", date))
-          rap_sers <- c()
+          print(paste("No MMR for", region, "on", date, '- skipping'))
+          return()
         }
         else {
-          rap_sers <- mmr["Device.Serial.Number"]
+          rnz_sers <- mmr[,"Device.Serial.Number"]
         }
         print("Writing separate RAP data file")
         '%ni%' <- Negate('%in%')
-        df_rap <- df[df["Serial"] %ni% rap_sers,]
-        df <- df[df["Serial"] %in% rap_sers,]
+        df_rap <- df[df[,"Serial"] %ni% rnz_sers,]
+        df <- df[df[,"Serial"] %in% rnz_sers,]
         writeDF(df_rap, date, model, 'RAP', src)
       }
       writeDF(df, date, model, region, src)
@@ -202,7 +202,7 @@ writeData <- function(date_to_df, model, region, src, date_to_mmr) {
 writeDF <- function(df, date, model, region, src) {
   # <date>/<region>/<model>/<source>.feather
   path <- paste(date, region, model, paste(src, "feather", sep="."), sep="/")
-  print(paste("Writing", path))
+  print(paste("Writing", nrow(df), "rows to", path))
   s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
 }
 
