@@ -26,7 +26,7 @@ max_hours <- hash(
   RomVer = 24*max_past_days
 )
 
-regions <- c('RNZ')
+regions <- c('RNZ', 'RAP')
 sources <- c('PMCount', 'Count', 'RomVer')
 #sources <- c('PMCount')
 #models <- c('E16', 'E15', 'C08') 

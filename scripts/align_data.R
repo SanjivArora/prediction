@@ -27,11 +27,15 @@ sources <- c('PMCount', 'Count', 'RomVer')
 #models <- c('E15')
 models <- NA
 
+ncores <- max(1, detectCores() / 4)
+
 ################################################################################
 # Functions
 ################################################################################
 
 processSource <- function(src) {
+  # Get a complete set of dates
+  # Ignore dates from the future and dates older than <days> - <margin>
   print(paste("Processing", src))
   timeit(
     all <- instancesForBucket(input_bucket, sources=c(src), days=days),
@@ -51,6 +55,7 @@ processSource <- function(src) {
     if(!identical(models, NA)) {
       ms <- intersect(ms, models)
     }
+    date_to_mmr <- readMMRs(region)
     for(model in ms) {
       tryCatch({
         model_fs <- model_to_fs[[model]]
@@ -60,7 +65,7 @@ processSource <- function(src) {
         )
         #date_to_df[keys(date_to_df)] %>% lapply(nrow) %>% print
         timeit(
-          writeData(date_to_df, model, region, src),
+          writeData(date_to_df, model, region, src, date_to_mmr),
           paste("writing", model)
         )
       },
@@ -72,13 +77,33 @@ processSource <- function(src) {
   }
 }
 
+readMMRs <- function(region) {
+  print(paste("Readings MMR files for", region))
+  mmr_pattern <- paste(region, '_ARemote_MMR', sep='')
+  timeit(
+    fs <- instancesForBucket(input_bucket, days=days+margin_days, pattern=mmr_pattern, parallel=parallel),
+    "instantiating MMRs"
+  )
+  all_filedates <- lapply(fs, function(f) f$date %>% as.character('%Y%m%d'))
+  gc()
+  timeit(
+    # Only take serial
+    mmrs <- plapply(fs, function(f) {gc(); return(f$getDataFrame(skip_processing=T))[,c("Device.Serial.Number", "Site.Name")]}, parallel=parallel, ncores=ncores),
+    "getting MMRs"
+  )
+  datestring_to_mmrs <- hash(all_filedates, mmrs)
+  return(datestring_to_mmrs)
+}
+
+
 # Return a hash mapping dates to dataframes containing rows for those dates
-processModel <- function(model, fs, region, src, increm) {
+processModel <- function(model, fs, region, src) {
   index_fields_all <- c('Serial', 'RetrievedDate', 'RetrievedTime', 'FileDate')
   index_fields <- index_fields_all[1:3]
   print(paste("Processing", length(fs), src, "data files for", model, "in", region))
+  gc()
   timeit(
-    dfs <- plapply(fs, function(f) f$getDataFrame(), parallel=parallel),
+    dfs <- plapply(fs, function(f) {gc(); return(f$getDataFrame())}, parallel=parallel, ncores=ncores),
     "getting dataframes"
   )
   all_filedates <- lapply(fs, function(f) f$date %>% as.character('%Y%m%d'))
@@ -95,25 +120,23 @@ processModel <- function(model, fs, region, src, increm) {
 
   # Take most recent readings
   timeit({
-      indices <- bindRowsForgiving(index_parts)
-      # Keep most recent (Serial, RetrievedDate, RetrievedTime, FileDate)
-      indices %<>% arrange(desc(FileDate))
-      indices %<>% distinct(Serial, RetrievedDate, RetrievedTime, .keep_all=TRUE)
+    indices <- bindRowsForgiving(index_parts)
+    # Keep most recent (Serial, RetrievedDate, RetrievedTime, FileDate)
+    indices %<>% arrange(desc(FileDate))
+    indices %<>% distinct(Serial, RetrievedDate, RetrievedTime, .keep_all=TRUE)
     },
     "getting indices for most recent readings"
   )
   
-  # Get a complete set of dates
-  # Ignore dates from the future and dates older than <days> - <margin>
   timeit({
-      dates <- indices$RetrievedDate %>% unique
-      dates %<>% subset(dates <= Sys.Date() & dates >= Sys.Date() - (days - margin_days))
-      dates %<>% unlist %>% sort
-      date_strings <- dates %>% as.character('%Y%m%d')
-    },
-    "getting complete set of reading dates"
+    dates <- indices$RetrievedDate %>% unique
+    dates %<>% subset(dates <= Sys.Date() & dates >= Sys.Date() - (days - margin_days))
+    dates %<>% unlist %>% sort
+    date_strings <- dates %>% as.character('%Y%m%d')
+  },
+  "getting complete set of reading dates"
   )
-
+  
   timeit(
     dfs <- plapply(
       dates,
@@ -140,11 +163,24 @@ processModel <- function(model, fs, region, src, increm) {
   return(res)
 }
 
-writeData <- function(date_to_df, model, region, src) {
+writeData <- function(date_to_df, model, region, src, date_to_mmr) {
   plapply(
     keys(date_to_df),
     function(date) {
       df <- date_to_df[[date]]
+      # Use MMR to split out RAP MIF from RNZ - necessary hack
+      # TODO: if no MMR file is available on the given date, find the closest version
+      if(region=='RNZ') {
+        mmr <- getWithDefault(date_to_mmr, date, F)
+        if(mmr==F) {
+          print(paste("No MMR for", region, "on", date, "- skipping"))
+        }
+        print("Writing separate RAP data file")
+        '%ni%' <- Negate('%in%')
+        df_rap <- df[df$Serial %ni% mmr$Device.Serial.Number,]
+        df <- df[df$Serial %in% mmr$Device.Serial.Number,]
+        writeDF(df_rap, date, model, 'RAP', src)
+      }
       writeDF(df, date, model, region, src)
     },
     parallel=parallel
@@ -157,8 +193,6 @@ writeDF <- function(df, date, model, region, src) {
   print(paste("Writing", path))
   s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
 }
-
-
 
 getDeviceModels <- function(...) {
   res <- device_groups[[device_group]]

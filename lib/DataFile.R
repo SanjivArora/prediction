@@ -44,12 +44,15 @@ DataFile <- setRefClass("DataFile",
       } else {
         return(pathJoin(base_path, .self$path))
     }},
-    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, time_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=7, prepend_source=TRUE) {
+    getDataFrame = function(filter_no_data=TRUE, filter_outdated=TRUE, date_field=NA, time_field=NA, rename=TRUE, na_strings=c("","NA"), max_data_age=7, prepend_source=TRUE, skip_processing=FALSE) {
       # Use as.is to disable representing values as factors
       if(.self$isS3()) {
         df <- withCloudFile(.self$getFullPath(), function(p) read.csv(p, header = TRUE, na.strings=na_strings, as.is=TRUE))
       } else {
         df <- read.csv(.self$getFullPath(), header = TRUE, na.strings=na_strings, as.is=TRUE)
+      }
+      if(skip_processing) {
+        return(df)
       }
       if(is.na(date_field)) {
         # Use the first field matching default_date_fields
@@ -240,8 +243,10 @@ instancesForDir <- function(directory=base_path, regions=NA, models=NA, sources=
 
 # Get instances for cloud files stored as <date>/<x> for specified number of days.
 # Filter for regions, models and sources if given (match all by default)
-instancesForBucket <- function(bucket=default_bucket, days=90, end_date=NA, regions=NA, models=NA, sources=NA, cls=DataFile, verbose=TRUE, parallel=TRUE) {
-  pattern <- makePattern(regions=regions, models=models, sources=sources)
+instancesForBucket <- function(bucket=default_bucket, days=90, end_date=NA, regions=NA, models=NA, sources=NA, cls=DataFile, verbose=TRUE, parallel=TRUE, pattern=F) {
+  if(pattern==F) {
+    pattern <- makePattern(regions=regions, models=models, sources=sources)
+  }
   timeit(
     paths <- listCloudFiles(bucket, days=days, end_date=end_date, pattern=pattern, parallel=parallel),
     "listing cloud files",
