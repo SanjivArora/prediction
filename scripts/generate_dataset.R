@@ -68,14 +68,13 @@ getDataForDate <- function(date, region, model, sources=sources, bucket=input_bu
     if(identical(candidates, NA)) {
       return(NA)
     }
+    #print(paste(date, source, length(candidates)))
     #print(nrow(res))
     #print(ncol(res))
     #print(nrow(candidates))
     res %<>% mergeMatching(candidates, maxHoursForSource(source))
-    #print(nrow(res))
-    #print(ncol(res))
+    #print(paste(date, source, length(dates), nrow(candidates), nrow(res), ncol(res)))
   }
-  return(res)
   return(res)
 }
 

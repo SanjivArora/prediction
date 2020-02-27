@@ -22,7 +22,7 @@ margin_days <- 2
 
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count', 'RomVer')
-#sources <- c('PMCount')
+#sources <- c('RomVer')
 #models <- c('E16', 'E15', 'C08') 
 #models <- c('E15')
 models <- NA
