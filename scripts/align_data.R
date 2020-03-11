@@ -23,9 +23,9 @@ margin_days <- 2
 regions <- c('RNZ')
 sources <- c('PMCount', 'Count', 'RomVer')
 #sources <- c('RomVer')
-#models <- c('E16', 'E15', 'C08') 
-#models <- c('E15')
 models <- NA
+#models <- c('E16', 'E15', 'C08') 
+#models <- c('E19')
 
 ncores <- max(1, detectCores() / 4)
 
@@ -94,6 +94,7 @@ readMMRs <- function(region) {
   datestring_to_mmrs <- hash(all_filedates, mmrs)
   return(datestring_to_mmrs)
 }
+readMMRs <- memoise(readMMRs)
 
 
 # Return a hash mapping dates to dataframes containing rows for those dates
@@ -170,7 +171,7 @@ writeData <- function(date_to_df, model, region, src, date_to_mmr) {
       df <- date_to_df[[date]]
       # Use MMR to split out RAP MIF from RNZ - necessary hack
       if(region=='RNZ') {
-        # If no MMR file is available on the given date, find a close dated version
+        # If no MMR file is available on the given date, find a close dated version. Look back up to two weeks, look forward up to one.
         deltas_to_try <- c(0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, -8, -9, -10, -11, -12, -13, -14)
         for (delta in deltas_to_try) {
           to_try = ymd(date)+delta
@@ -203,7 +204,15 @@ writeDF <- function(df, date, model, region, src) {
   # <date>/<region>/<model>/<source>.feather
   path <- paste(date, region, model, paste(src, "feather", sep="."), sep="/")
   print(paste("Writing", nrow(df), "rows to", path))
-  s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
+  tryCatch({
+    s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket)
+    return(T)
+  },
+  error=function(e) {
+    print(paste("Error writing dataframe to", path))
+    print(e)
+  })
+  return(F)
 }
 
 getDeviceModels <- function(...) {

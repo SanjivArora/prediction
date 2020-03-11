@@ -27,11 +27,12 @@ max_hours <- hash(
 )
 
 regions <- c('RNZ', 'RAP')
+#regions <- c('RAP')
 sources <- c('PMCount', 'Count', 'RomVer')
 #sources <- c('PMCount')
+models <- NA
 #models <- c('E16', 'E15', 'C08') 
 #models <- c('E19')
-models <- NA
 
 ################################################################################
 # Functions
