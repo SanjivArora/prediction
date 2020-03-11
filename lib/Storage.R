@@ -50,6 +50,10 @@ latestCloudFile <- function(bucket, prefix="") {
 getBucketAll <- function(bucket, ...) {
   get_bucket(bucket, max=Inf, ...)
 }
+# Memoize with filesystem to simplify memoization with parallel operations
+getBucketAll <- memoise(getBucketAll, cache=fs_cache)
+# Clear any previous instances
+forget(getBucketAll)
 
 # Cloudyr objects to paths
 toPaths <- function(xs) {
