@@ -4,6 +4,7 @@ require(magrittr)
 require(feather)
 require(lubridate)
 require(data.table)
+require(dplyr)
 
 ################################################################################
 # Config
@@ -11,6 +12,7 @@ require(data.table)
 
 input_bucket <- 'ricoh-prediction-data-aligned'
 output_bucket <- 'ricoh-prediction-data-cache'
+output_bucket_latest <- 'ricoh-prediction-data-latest'
 
 parallel <- TRUE
 days <- 1000
@@ -127,8 +129,14 @@ writeDF <- function(df, date, model, region) {
   # <date>/<region>/<model>.feather
   date_string <- date %>% as.character('%Y%m%d')
   path <- paste(date_string, region, paste(model, "feather", sep="."), sep="/")
-  print(paste("Writing", path))
+  print(paste("Writing full to", path))
   s3write_using(df, FUN=write_feather, object=path, bucket=output_bucket, opts=list(multipart=TRUE))
+
+  # Write only most recent row for each machine
+  path_latest <- paste(date_string, region, paste(model, "feather", sep="."), sep="/")
+  df_latest <- df %>% group_by(Serial) %>% slice(1) %>% ungroup
+  print(paste("Writing latest to ", path_latest))
+  s3write_using(df_latest, FUN=write_feather, object=path_latest, bucket=output_bucket_latest, opts=list(multipart=TRUE))
 }
 
 getModels <- function() {
