@@ -15,7 +15,7 @@ output_bucket <- 'ricoh-prediction-data-cache'
 output_bucket_latest <- 'ricoh-prediction-data-latest'
 
 parallel <- TRUE
-days <- 1000
+days <- 1500
 #days <- 30
 
 max_past_days = 7

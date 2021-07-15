@@ -15,7 +15,7 @@ output_bucket <- 'ricoh-prediction-data-aligned'
 parallel <- TRUE
 # Overwritten to incremental_days if --incremental is true
 #days <- 30
-days <- 1000
+days <- 1500
 incremental_days <- 14
 
 margin_days <- 2
